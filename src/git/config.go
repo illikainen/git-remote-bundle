@@ -247,6 +247,70 @@ func ConfigSlice(name string, vtype string) ([]string, error) {
 	return values, nil
 }
 
+func SandboxPaths() (ro []string, rw []string, err error) {
+	ro = append(ro, filepath.Join(string(os.PathSeparator), "etc", "gitconfig"))
+
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return nil, nil, err
+	}
+	ro = append(ro, filepath.Join(home, ".gitconfig"))
+
+	config, err := os.UserConfigDir()
+	if err != nil {
+		return nil, nil, err
+	}
+	ro = append(ro, filepath.Join(config, "git", "config"))
+
+	include, err := Config("include.path", "path")
+	if err != nil {
+		return nil, nil, err
+	}
+	ro = append(ro, include)
+
+	format, err := Config("gpg.format", "path")
+	if err != nil {
+		return nil, nil, err
+	}
+
+	if format == "ssh" {
+		signingKey, err := Config("user.signingKey", "path")
+		if err != nil {
+			return nil, nil, err
+		}
+		ro = append(ro, signingKey)
+
+		allowedSignersFile, err := Config("gpg.ssh.allowedSignersFile", "path")
+		if err != nil {
+			return nil, nil, err
+		}
+		ro = append(ro, allowedSignersFile)
+	}
+
+	for _, purpose := range []string{"sign", "encrypt"} {
+		for _, kind := range []string{"nacl", "rsa"} {
+			for _, part := range []string{"PublicKey", "PrivateKey"} {
+				key := fmt.Sprintf("bundle.%s.%s%s", purpose, kind, part)
+				paths, err := ConfigSlice(key, "path")
+				if err != nil {
+					return nil, nil, err
+				}
+
+				for _, path := range paths {
+					realPath, err := expand(path)
+					if err != nil {
+						return nil, nil, err
+					}
+
+					ro = append(ro, realPath)
+				}
+			}
+		}
+	}
+
+	return ro, nil, nil
+}
+
 func expand(path string) (string, error) {
 	intPath, err := stringx.Interpolate(path)
 	if err != nil {

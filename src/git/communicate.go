@@ -10,9 +10,11 @@ import (
 	"path/filepath"
 
 	"github.com/illikainen/go-cryptor/src/blob"
+	"github.com/illikainen/go-netutils/src/sshx"
 	"github.com/illikainen/go-netutils/src/transport"
 	"github.com/illikainen/go-utils/src/errorx"
 	"github.com/illikainen/go-utils/src/iofs"
+	"github.com/illikainen/go-utils/src/sandbox"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 )
@@ -30,24 +32,75 @@ func Communicate() (err error) {
 		return err
 	}
 
-	xfer, err := transport.New(uri)
+	baseDir, err := BaseDir()
 	if err != nil {
 		return err
 	}
-	defer errorx.Defer(xfer.Close, &err)
+
+	err = os.MkdirAll(baseDir, 0700)
+	if err != nil {
+		return err
+	}
+
+	if sandbox.Compatible() && !sandbox.IsSandboxed() {
+		ro := []string{}
+		rw := []string{baseDir}
+
+		gitRO, gitRW, err := SandboxPaths()
+		if err != nil {
+			return err
+		}
+		ro = append(ro, gitRO...)
+		rw = append(rw, gitRW...)
+
+		sshRO, sshRW, err := sshx.SandboxPaths()
+		if err != nil {
+			return err
+		}
+		ro = append(ro, sshRO...)
+		rw = append(rw, sshRW...)
+
+		// Required to mount the file in the sandbox.
+		if uri.Scheme == "file" {
+			path, err := expand(uri.Path)
+			if err != nil {
+				return err
+			}
+
+			f, err := os.Create(path)
+			if err != nil {
+				return err
+			}
+
+			err = f.Close()
+			if err != nil {
+				return err
+			}
+
+			rw = append(rw, uri.Path)
+		}
+
+		return sandbox.Run(sandbox.Options{
+			Args:  os.Args,
+			RO:    ro,
+			RW:    rw,
+			Share: sandbox.ShareNet,
+		})
+	}
 
 	keys, err := ReadKeyrings()
 	if err != nil {
 		return err
 	}
 
-	baseDir, err := BaseDir()
+	_, bundleName := filepath.Split(uri.Path)
+	bundlePath := filepath.Join(baseDir, bundleName)
+
+	xfer, err := transport.New(uri)
 	if err != nil {
 		return err
 	}
-
-	_, bundleName := filepath.Split(uri.Path)
-	bundlePath := filepath.Join(baseDir, bundleName)
+	defer errorx.Defer(xfer.Close, &err)
 
 	scan := bufio.NewScanner(os.Stdin)
 	for scan.Scan() {
