@@ -11,6 +11,7 @@ import (
 	"github.com/illikainen/go-cryptor/src/cryptor"
 	"github.com/illikainen/go-utils/src/cobrax"
 	"github.com/illikainen/go-utils/src/errorx"
+	"github.com/illikainen/go-utils/src/sandbox"
 	"github.com/illikainen/go-utils/src/stringx"
 	"github.com/pkg/errors"
 	"github.com/samber/lo"
@@ -40,6 +41,39 @@ func init() {
 }
 
 func metadataRun(_ *cobra.Command, _ []string) (err error) {
+	if sandbox.Compatible() && !sandbox.IsSandboxed() {
+		ro := []string{metadataOpts.Input}
+		rw := []string{}
+
+		gitRO, gitRW, err := git.SandboxPaths()
+		if err != nil {
+			return err
+		}
+		ro = append(ro, gitRO...)
+		rw = append(rw, gitRW...)
+
+		if metadataOpts.Output != "" {
+			// Required to mount the file in the sandbox.
+			f, err := os.Create(metadataOpts.Output)
+			if err != nil {
+				return err
+			}
+
+			err = f.Close()
+			if err != nil {
+				return err
+			}
+
+			rw = append(rw, metadataOpts.Output)
+		}
+
+		return sandbox.Run(sandbox.Options{
+			Args: os.Args,
+			RO:   ro,
+			RW:   rw,
+		})
+	}
+
 	keys, err := git.ReadKeyrings()
 	if err != nil {
 		return err

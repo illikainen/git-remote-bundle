@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"os"
 	"path/filepath"
 
 	"github.com/illikainen/git-remote-bundle/src/git"
@@ -10,6 +11,7 @@ import (
 	"github.com/illikainen/go-utils/src/cobrax"
 	"github.com/illikainen/go-utils/src/errorx"
 	"github.com/illikainen/go-utils/src/iofs"
+	"github.com/illikainen/go-utils/src/sandbox"
 	"github.com/pkg/errors"
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
@@ -40,6 +42,35 @@ func init() {
 }
 
 func decryptRun(_ *cobra.Command, _ []string) (err error) {
+	if sandbox.Compatible() && !sandbox.IsSandboxed() {
+		ro := []string{decryptOpts.Input}
+		rw := []string{decryptOpts.Output}
+
+		gitRO, gitRW, err := git.SandboxPaths()
+		if err != nil {
+			return err
+		}
+		ro = append(ro, gitRO...)
+		rw = append(rw, gitRW...)
+
+		// Required to mount the file in the sandbox.
+		f, err := os.Create(decryptOpts.Output)
+		if err != nil {
+			return err
+		}
+
+		err = f.Close()
+		if err != nil {
+			return err
+		}
+
+		return sandbox.Run(sandbox.Options{
+			Args: os.Args,
+			RO:   ro,
+			RW:   rw,
+		})
+	}
+
 	keys, err := git.ReadKeyrings()
 	if err != nil {
 		return err
