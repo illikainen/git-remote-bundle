@@ -1,0 +1,238 @@
+package git
+
+import (
+	"bufio"
+	"bytes"
+	"fmt"
+	"net/url"
+	"os"
+	"os/exec"
+	"path/filepath"
+
+	"github.com/illikainen/go-cryptor/src/blob"
+	"github.com/illikainen/go-netutils/src/transport"
+	"github.com/illikainen/go-utils/src/errorx"
+	"github.com/illikainen/go-utils/src/iofs"
+	"github.com/pkg/errors"
+	log "github.com/sirupsen/logrus"
+)
+
+var ErrMissingArguments = errors.New("missing arguments")
+var ErrInvalidCommand = errors.New("invalid command")
+
+func Communicate() (err error) {
+	if len(os.Args) != 3 {
+		return ErrMissingArguments
+	}
+
+	uri, err := url.Parse(os.Args[2])
+	if err != nil {
+		return err
+	}
+
+	xfer, err := transport.New(uri)
+	if err != nil {
+		return err
+	}
+	defer errorx.Defer(xfer.Close, &err)
+
+	keys, err := ReadKeyrings()
+	if err != nil {
+		return err
+	}
+
+	baseDir, err := BaseDir()
+	if err != nil {
+		return err
+	}
+
+	_, bundleName := filepath.Split(uri.Path)
+	bundlePath := filepath.Join(baseDir, bundleName)
+
+	scan := bufio.NewScanner(os.Stdin)
+	for scan.Scan() {
+		cmd := scan.Text()
+		log.Tracef("cmd: %s", cmd)
+
+		switch cmd {
+		case "capabilities":
+			err := capabilities()
+			if err != nil {
+				return err
+			}
+		case "connect git-upload-pack": // retrievals (e.g., git fetch)
+			err := gitUploadPack(bundlePath, uri.Path, xfer, keys)
+			if err != nil {
+				return err
+			}
+		case "connect git-receive-pack": // uploads (e.g., git push)
+			err := gitReceivePack(bundlePath, uri.Path, xfer, keys)
+			if err != nil {
+				return err
+			}
+		default:
+			return fmt.Errorf("%w: %s", ErrInvalidCommand, cmd)
+		}
+	}
+
+	return scan.Err()
+}
+
+func capabilities() error {
+	_, err := os.Stdout.WriteString("connect\n\n")
+	return err
+}
+
+func gitUploadPack(bundlePath string, remotePath string, xfer transport.Transport,
+	keys *blob.Keyrings) error {
+	return withRemoteBundle(bundlePath, remotePath, xfer, keys, false,
+		func(repo string, _ string) error {
+			uploadPack := exec.Command("git", "upload-pack", repo)
+			uploadPack.Stdin = os.Stdin
+			uploadPack.Stdout = os.Stdout
+			uploadPack.Stderr = os.Stderr
+			return uploadPack.Run()
+		})
+}
+
+func gitReceivePack(bundlePath string, remotePath string, xfer transport.Transport,
+	keys *blob.Keyrings) error {
+	return withRemoteBundle(bundlePath, remotePath, xfer, keys, true,
+		func(repo string, tmp string) error {
+			oldRefs, err := exec.Command("git", "--git-dir", repo, "show-ref").Output()
+			if err != nil {
+				oldRefs = []byte{}
+			}
+
+			receivePack := exec.Command("git", "receive-pack", repo)
+			receivePack.Stdin = os.Stdin
+			receivePack.Stdout = os.Stdout
+			receivePack.Stderr = os.Stderr
+			err = receivePack.Run()
+			if err != nil {
+				return err
+			}
+
+			newRefs, err := exec.Command("git", "--git-dir", repo, "show-ref").Output()
+			if err != nil {
+				return err
+			}
+
+			if bytes.Equal(oldRefs, newRefs) {
+				log.Debug("nothing new to upload")
+				return nil
+			}
+
+			tmpBundlePath := filepath.Join(tmp, "bundle")
+			tmpBundle, err := blob.New(blob.Config{
+				Path:      tmpBundlePath,
+				Transport: xfer,
+				Keys:      keys,
+			})
+			if err != nil {
+				return err
+			}
+
+			tmpFlatBundlePath := filepath.Join(tmp, "flat.bundle")
+			err = exec.Command("git", "--git-dir", repo, "bundle", "create",
+				tmpFlatBundlePath, "--branches", "--tags").Run()
+			if err != nil {
+				return err
+			}
+
+			err = tmpBundle.Import(tmpFlatBundlePath, nil)
+			if err != nil {
+				return err
+			}
+
+			if len(keys.Encrypt.NaCl.Public) > 0 || len(keys.Encrypt.RSA.Public) > 0 {
+				err := tmpBundle.Encrypt()
+				if err != nil {
+					return err
+				}
+
+				err = tmpBundle.Sign()
+				if err != nil {
+					return err
+				}
+			} else {
+				err := tmpBundle.Sign()
+				if err != nil {
+					return err
+				}
+			}
+
+			bundle, err := tmpBundle.Move(bundlePath)
+			if err != nil {
+				return err
+			}
+
+			err = bundle.Upload(remotePath)
+			if err != nil {
+				return err
+			}
+
+			return nil
+		})
+}
+
+func withRemoteBundle(bundlePath string, remotePath string, xfer transport.Transport, keys *blob.Keyrings,
+	allowMissing bool, fn func(string, string) error) (err error) {
+	tmpDir, tmpCleanup, err := iofs.MkdirTemp()
+	if err != nil {
+		return err
+	}
+	defer errorx.Defer(tmpCleanup, &err)
+
+	_, bundleName := filepath.Split(bundlePath)
+	bundle, err := blob.New(blob.Config{Path: bundlePath, Transport: xfer, Keys: keys})
+	if err != nil {
+		return err
+	}
+	tmpRepo := filepath.Join(tmpDir, "repo")
+
+	exists, err := bundle.HasRemote(remotePath)
+	if err != nil {
+		return err
+	}
+	if exists {
+		err = bundle.Download(remotePath)
+		if err != nil {
+			return err
+		}
+
+		verifiedBundlePath := filepath.Join(tmpDir, "verified.bundle")
+		meta, err := bundle.Verify(verifiedBundlePath)
+		if err != nil {
+			return err
+		}
+
+		plainBundlePath := filepath.Join(tmpDir, "plaintext.bundle")
+		if len(keys.Encrypt.NaCl.Private) > 0 || len(keys.Encrypt.RSA.Private) > 0 {
+			plainBundlePath = filepath.Join(tmpDir, bundleName)
+			err := bundle.Decrypt(verifiedBundlePath, plainBundlePath, meta.Keys)
+			if err != nil {
+				return err
+			}
+		}
+
+		err = cloneBundle(plainBundlePath, tmpRepo)
+		if err != nil {
+			return err
+		}
+	} else if allowMissing {
+		err := exec.Command("git", "init", "--bare", tmpRepo).Run()
+		if err != nil {
+			return err
+		}
+	} else {
+		return fmt.Errorf("%s does not exist", xfer)
+	}
+
+	_, err = os.Stdout.WriteString("\n")
+	if err != nil {
+		return err
+	}
+
+	return fn(tmpRepo, tmpDir)
+}
