@@ -198,21 +198,16 @@ func gitReceivePack(bundlePath string, remotePath string, xfer transport.Transpo
 				return err
 			}
 
-			if len(keys.Encrypt.NaCl.Public) > 0 || len(keys.Encrypt.RSA.Public) > 0 {
+			if Encrypt() {
 				err := tmpBundle.Encrypt()
 				if err != nil {
 					return err
 				}
+			}
 
-				err = tmpBundle.Sign()
-				if err != nil {
-					return err
-				}
-			} else {
-				err := tmpBundle.Sign()
-				if err != nil {
-					return err
-				}
+			err = tmpBundle.Sign()
+			if err != nil {
+				return err
 			}
 
 			bundle, err := tmpBundle.Move(bundlePath)
@@ -260,16 +255,16 @@ func withRemoteBundle(bundlePath string, remotePath string, xfer transport.Trans
 			return err
 		}
 
-		plainBundlePath := filepath.Join(tmpDir, "plaintext.bundle")
-		if len(keys.Encrypt.NaCl.Private) > 0 || len(keys.Encrypt.RSA.Private) > 0 {
-			plainBundlePath = filepath.Join(tmpDir, bundleName)
-			err := bundle.Decrypt(verifiedBundlePath, plainBundlePath, meta.Keys)
+		cloneBundlePath := verifiedBundlePath
+		if Encrypt() {
+			cloneBundlePath = filepath.Join(tmpDir, bundleName)
+			err := bundle.Decrypt(verifiedBundlePath, cloneBundlePath, meta.Keys)
 			if err != nil {
 				return err
 			}
 		}
 
-		err = cloneBundle(plainBundlePath, tmpRepo)
+		err = cloneBundle(cloneBundlePath, tmpRepo)
 		if err != nil {
 			return err
 		}

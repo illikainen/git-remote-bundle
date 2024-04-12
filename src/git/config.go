@@ -3,7 +3,6 @@ package git
 import (
 	"bufio"
 	"bytes"
-	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -17,144 +16,43 @@ import (
 	"github.com/illikainen/go-cryptor/src/cryptor"
 	"github.com/illikainen/go-utils/src/iofs"
 	"github.com/illikainen/go-utils/src/stringx"
-	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 )
 
 func ReadKeyrings() (*blob.Keyrings, error) {
-	sign, err := readKeyring(cryptor.SignPurpose)
-	if err != nil {
-		return nil, err
-	}
-	if len(sign.NaCl.Private) == 0 && len(sign.RSA.Private) == 0 {
-		return nil, errors.Wrap(cryptor.ErrMissingPrivateKey, "sign")
-	}
-	if len(sign.NaCl.Public) == 0 && len(sign.RSA.Public) == 0 {
-		return nil, errors.Wrap(cryptor.ErrMissingPublicKey, "sign")
-	}
-
-	encrypt, err := readKeyring(cryptor.EncryptPurpose)
-	if err != nil {
-		return nil, err
-	}
-	if len(encrypt.NaCl.Private) != 0 && len(encrypt.NaCl.Public) == 0 {
-		return nil, errors.Wrap(cryptor.ErrMissingPublicKey, "NaCl encrypt")
-	}
-	if len(encrypt.RSA.Private) != 0 && len(encrypt.RSA.Public) == 0 {
-		return nil, errors.Wrap(cryptor.ErrMissingPublicKey, "RSA encrypt")
-	}
-	if len(encrypt.NaCl.Public) > 0 && len(encrypt.RSA.Public) > 0 {
-		if encrypt.NaCl.Private == nil || encrypt.RSA.Private == nil {
-			return nil, errors.Wrap(cryptor.ErrMissingPrivateKey, "NaCl or RSA")
-		}
-		if len(encrypt.NaCl.Public) != len(encrypt.RSA.Public) {
-			return nil, errors.Wrap(cryptor.ErrMissingPublicKey, "invalid encrypt config")
-		}
-	}
-
-	return &blob.Keyrings{
-		Sign:    sign,
-		Encrypt: encrypt,
-	}, nil
-}
-
-func readKeyring(purpose int) (*blob.Keyring, error) {
-	naclPub, err := readPublicKeys("nacl", purpose)
-	if err != nil {
-		return nil, err
-	}
-
-	naclPriv, err := readPrivateKey("nacl", purpose)
-	if err != nil {
-		return nil, err
-	}
-
-	rsaPub, err := readPublicKeys("rsa", purpose)
-	if err != nil {
-		return nil, err
-	}
-
-	rsaPriv, err := readPrivateKey("rsa", purpose)
-	if err != nil {
-		return nil, err
-	}
-
-	return &blob.Keyring{
-		NaCl: blob.Keys{
-			Public:  naclPub,
-			Private: naclPriv,
-		},
-		RSA: blob.Keys{
-			Public:  rsaPub,
-			Private: rsaPriv,
-		},
-	}, nil
-}
-
-func readPublicKeys(kind string, purpose int) ([]cryptor.PublicKey, error) {
-	key := ""
-	if purpose == cryptor.SignPurpose {
-		key = fmt.Sprintf("bundle.sign.%sPublicKey", kind)
-	} else if purpose == cryptor.EncryptPurpose {
-		key = fmt.Sprintf("bundle.encrypt.%sPublicKey", kind)
-	} else {
-		return nil, cryptor.ErrInvalidPurpose
-	}
-
-	paths, err := ConfigSlice(key, "path")
+	pubPaths, err := ConfigSlice("bundle.pubKeys", "path")
 	if err != nil {
 		return nil, err
 	}
 
 	pubKeys := []cryptor.PublicKey{}
-	for _, path := range paths {
+	for _, path := range pubPaths {
 		realPath, err := expand(path)
 		if err != nil {
 			return nil, err
 		}
 
-		pubKey, err := asymmetric.ReadPublicKey(cryptor.AsymmetricMap[kind], realPath, purpose)
+		pubKey, err := asymmetric.ReadPublicKey(realPath)
 		if err != nil {
 			return nil, err
 		}
+
 		pubKeys = append(pubKeys, pubKey)
 	}
 
-	return pubKeys, nil
-}
-
-func readPrivateKey(kind string, purpose int) ([]cryptor.PrivateKey, error) {
-	key := ""
-	if purpose == cryptor.SignPurpose {
-		key = fmt.Sprintf("bundle.sign.%sPrivateKey", kind)
-	} else if purpose == cryptor.EncryptPurpose {
-		key = fmt.Sprintf("bundle.encrypt.%sPrivateKey", kind)
-	} else {
-		return nil, cryptor.ErrInvalidPurpose
+	privPath, err := Config("bundle.privKey", "path")
+	if err != nil {
+		return nil, err
 	}
-
-	paths, err := ConfigSlice(key, "path")
+	privKey, err := asymmetric.ReadPrivateKey(privPath)
 	if err != nil {
 		return nil, err
 	}
 
-	switch len(paths) {
-	case 0:
-		return nil, nil
-	case 1:
-		realPath, err := expand(paths[0])
-		if err != nil {
-			return nil, err
-		}
-
-		privKey, err := asymmetric.ReadPrivateKey(cryptor.AsymmetricMap[kind], realPath, purpose)
-		if err != nil {
-			return nil, err
-		}
-		return []cryptor.PrivateKey{privKey}, nil
-	default:
-		return nil, fmt.Errorf("%s: at most one key can be configured", key)
-	}
+	return &blob.Keyrings{
+		Public:  pubKeys,
+		Private: privKey,
+	}, nil
 }
 
 func BaseDir() (string, error) {
@@ -183,6 +81,16 @@ func LogLevel() log.Level {
 	}
 
 	return log.InfoLevel
+}
+
+func Encrypt() bool {
+	encrypt, err := Config("bundle.encrypt", "bool")
+	if err != nil {
+		log.Warnf("unable to parse `bundle.encrypt`, failing safe by interpreting it as true")
+		return true
+	}
+
+	return encrypt == "true"
 }
 
 // The `merge.verifySignatures` option has nothing to do with the cryptographic
@@ -287,24 +195,19 @@ func SandboxPaths() (ro []string, rw []string, err error) {
 		ro = append(ro, allowedSignersFile)
 	}
 
-	for _, purpose := range []string{"sign", "encrypt"} {
-		for _, kind := range []string{"nacl", "rsa"} {
-			for _, part := range []string{"PublicKey", "PrivateKey"} {
-				key := fmt.Sprintf("bundle.%s.%s%s", purpose, kind, part)
-				paths, err := ConfigSlice(key, "path")
-				if err != nil {
-					return nil, nil, err
-				}
+	for _, key := range []string{"bundle.pubkeys", "bundle.privkey"} {
+		paths, err := ConfigSlice(key, "path")
+		if err != nil {
+			return nil, nil, err
+		}
 
-				for _, path := range paths {
-					realPath, err := expand(path)
-					if err != nil {
-						return nil, nil, err
-					}
-
-					ro = append(ro, realPath)
-				}
+		for _, path := range paths {
+			realPath, err := expand(path)
+			if err != nil {
+				return nil, nil, err
 			}
+
+			ro = append(ro, realPath)
 		}
 	}
 
