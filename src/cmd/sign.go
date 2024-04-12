@@ -65,7 +65,7 @@ func signRun(_ *cobra.Command, _ []string) error {
 		})
 	}
 
-	keys, err := git.ReadKeyrings()
+	keys, err := git.ReadKeyring()
 	if err != nil {
 		return err
 	}

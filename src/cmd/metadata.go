@@ -74,7 +74,7 @@ func metadataRun(_ *cobra.Command, _ []string) (err error) {
 		})
 	}
 
-	keys, err := git.ReadKeyrings()
+	keys, err := git.ReadKeyring()
 	if err != nil {
 		return err
 	}

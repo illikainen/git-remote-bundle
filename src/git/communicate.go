@@ -88,7 +88,7 @@ func Communicate() (err error) {
 		})
 	}
 
-	keys, err := ReadKeyrings()
+	keys, err := ReadKeyring()
 	if err != nil {
 		return err
 	}
@@ -137,7 +137,7 @@ func capabilities() error {
 }
 
 func gitUploadPack(bundlePath string, remotePath string, xfer transport.Transport,
-	keys *blob.Keyrings) error {
+	keys *blob.Keyring) error {
 	return withRemoteBundle(bundlePath, remotePath, xfer, keys, false,
 		func(repo string, _ string) error {
 			uploadPack := exec.Command("git", "upload-pack", repo)
@@ -149,7 +149,7 @@ func gitUploadPack(bundlePath string, remotePath string, xfer transport.Transpor
 }
 
 func gitReceivePack(bundlePath string, remotePath string, xfer transport.Transport,
-	keys *blob.Keyrings) error {
+	keys *blob.Keyring) error {
 	return withRemoteBundle(bundlePath, remotePath, xfer, keys, true,
 		func(repo string, tmp string) error {
 			oldRefs, err := exec.Command("git", "--git-dir", repo, "show-ref").Output()
@@ -224,7 +224,7 @@ func gitReceivePack(bundlePath string, remotePath string, xfer transport.Transpo
 		})
 }
 
-func withRemoteBundle(bundlePath string, remotePath string, xfer transport.Transport, keys *blob.Keyrings,
+func withRemoteBundle(bundlePath string, remotePath string, xfer transport.Transport, keys *blob.Keyring,
 	allowMissing bool, fn func(string, string) error) (err error) {
 	tmpDir, tmpCleanup, err := iofs.MkdirTemp()
 	if err != nil {

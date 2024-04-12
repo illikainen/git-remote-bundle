@@ -19,7 +19,7 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-func ReadKeyrings() (*blob.Keyrings, error) {
+func ReadKeyring() (*blob.Keyring, error) {
 	pubPaths, err := ConfigSlice("bundle.pubKeys", "path")
 	if err != nil {
 		return nil, err
@@ -49,7 +49,7 @@ func ReadKeyrings() (*blob.Keyrings, error) {
 		return nil, err
 	}
 
-	return &blob.Keyrings{
+	return &blob.Keyring{
 		Public:  pubKeys,
 		Private: privKey,
 	}, nil
