@@ -4,6 +4,7 @@ import (
 	"os"
 
 	"github.com/illikainen/git-remote-bundle/src/git"
+	"github.com/illikainen/git-remote-bundle/src/metadata"
 
 	"github.com/illikainen/go-cryptor/src/blob"
 	"github.com/illikainen/go-cryptor/src/cryptor"
@@ -70,7 +71,11 @@ func signRun(_ *cobra.Command, _ []string) error {
 		return err
 	}
 
-	bundle, err := blob.New(blob.Config{Path: signOpts.Output, Keys: keys})
+	bundle, err := blob.New(blob.Config{
+		Type: metadata.Name(),
+		Path: signOpts.Output,
+		Keys: keys,
+	})
 	if err != nil {
 		return err
 	}

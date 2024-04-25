@@ -4,6 +4,7 @@ import (
 	"os"
 
 	"github.com/illikainen/git-remote-bundle/src/git"
+	"github.com/illikainen/git-remote-bundle/src/metadata"
 
 	"github.com/illikainen/go-cryptor/src/blob"
 	"github.com/illikainen/go-cryptor/src/cryptor"
@@ -73,7 +74,11 @@ func verifyRun(_ *cobra.Command, _ []string) error {
 		return err
 	}
 
-	bundle, err := blob.New(blob.Config{Path: verifyOpts.Input, Keys: keys})
+	bundle, err := blob.New(blob.Config{
+		Type: metadata.Name(),
+		Path: verifyOpts.Input,
+		Keys: keys,
+	})
 	if err != nil {
 		return err
 	}

@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 
 	"github.com/illikainen/git-remote-bundle/src/git"
+	"github.com/illikainen/git-remote-bundle/src/metadata"
 
 	"github.com/illikainen/go-cryptor/src/blob"
 	"github.com/illikainen/go-cryptor/src/cryptor"
@@ -76,7 +77,11 @@ func decryptRun(_ *cobra.Command, _ []string) (err error) {
 		return err
 	}
 
-	bundle, err := blob.New(blob.Config{Path: decryptOpts.Input, Keys: keys})
+	bundle, err := blob.New(blob.Config{
+		Type: metadata.Name(),
+		Path: decryptOpts.Input,
+		Keys: keys,
+	})
 	if err != nil {
 		return err
 	}

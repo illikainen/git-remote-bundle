@@ -9,6 +9,8 @@ import (
 	"os/exec"
 	"path/filepath"
 
+	"github.com/illikainen/git-remote-bundle/src/metadata"
+
 	"github.com/illikainen/go-cryptor/src/blob"
 	"github.com/illikainen/go-netutils/src/sshx"
 	"github.com/illikainen/go-netutils/src/transport"
@@ -178,6 +180,7 @@ func gitReceivePack(bundlePath string, remotePath string, xfer transport.Transpo
 
 			tmpBundlePath := filepath.Join(tmp, "bundle")
 			tmpBundle, err := blob.New(blob.Config{
+				Type:      metadata.Name(),
 				Path:      tmpBundlePath,
 				Transport: xfer,
 				Keys:      keys,
@@ -233,7 +236,12 @@ func withRemoteBundle(bundlePath string, remotePath string, xfer transport.Trans
 	defer errorx.Defer(tmpCleanup, &err)
 
 	_, bundleName := filepath.Split(bundlePath)
-	bundle, err := blob.New(blob.Config{Path: bundlePath, Transport: xfer, Keys: keys})
+	bundle, err := blob.New(blob.Config{
+		Type:      metadata.Name(),
+		Path:      bundlePath,
+		Transport: xfer,
+		Keys:      keys,
+	})
 	if err != nil {
 		return err
 	}
