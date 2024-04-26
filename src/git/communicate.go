@@ -69,17 +69,24 @@ func Communicate() (err error) {
 				return err
 			}
 
-			f, err := os.Create(path)
+			exists, err := iofs.Exists(path)
 			if err != nil {
 				return err
 			}
 
-			err = f.Close()
-			if err != nil {
-				return err
+			if !exists {
+				f, err := os.Create(path)
+				if err != nil {
+					return err
+				}
+
+				err = f.Close()
+				if err != nil {
+					return err
+				}
 			}
 
-			rw = append(rw, uri.Path)
+			rw = append(rw, path)
 		}
 
 		return sandbox.Run(sandbox.Options{
