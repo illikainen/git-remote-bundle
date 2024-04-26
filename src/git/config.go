@@ -44,7 +44,13 @@ func ReadKeyring() (*blob.Keyring, error) {
 	if err != nil {
 		return nil, err
 	}
-	privKey, err := asymmetric.ReadPrivateKey(privPath)
+
+	realPrivPath, err := expand(privPath)
+	if err != nil {
+		return nil, err
+	}
+
+	privKey, err := asymmetric.ReadPrivateKey(realPrivPath)
 	if err != nil {
 		return nil, err
 	}
