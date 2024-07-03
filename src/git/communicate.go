@@ -16,6 +16,7 @@ import (
 	"github.com/illikainen/go-netutils/src/transport"
 	"github.com/illikainen/go-utils/src/errorx"
 	"github.com/illikainen/go-utils/src/iofs"
+	"github.com/illikainen/go-utils/src/process"
 	"github.com/illikainen/go-utils/src/sandbox"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
@@ -89,12 +90,16 @@ func Communicate() (err error) {
 			rw = append(rw, path)
 		}
 
-		return sandbox.Run(sandbox.Options{
-			Args:  os.Args,
-			RO:    ro,
-			RW:    rw,
-			Share: sandbox.ShareNet,
+		_, err = sandbox.Exec(sandbox.Options{
+			Command: os.Args,
+			RO:      ro,
+			RW:      rw,
+			Share:   sandbox.ShareNet,
+			Stdin:   os.Stdin,
+			Stdout:  process.ByteOutput,
+			Stderr:  process.LogrusOutput,
 		})
+		return err
 	}
 
 	keys, err := ReadKeyring()

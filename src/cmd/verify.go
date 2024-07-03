@@ -9,6 +9,7 @@ import (
 	"github.com/illikainen/go-cryptor/src/blob"
 	"github.com/illikainen/go-cryptor/src/cryptor"
 	"github.com/illikainen/go-utils/src/cobrax"
+	"github.com/illikainen/go-utils/src/process"
 	"github.com/illikainen/go-utils/src/sandbox"
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
@@ -62,11 +63,14 @@ func verifyRun(_ *cobra.Command, _ []string) error {
 			rw = append(rw, verifyOpts.Output)
 		}
 
-		return sandbox.Run(sandbox.Options{
-			Args: os.Args,
-			RO:   ro,
-			RW:   rw,
+		_, err = sandbox.Exec(sandbox.Options{
+			Command: os.Args,
+			RO:      ro,
+			RW:      rw,
+			Stdout:  process.LogrusOutput,
+			Stderr:  process.LogrusOutput,
 		})
+		return err
 	}
 
 	keys, err := git.ReadKeyring()
