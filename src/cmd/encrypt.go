@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"io"
 	"os"
 
 	"github.com/illikainen/git-remote-bundle/src/git"
@@ -9,6 +10,7 @@ import (
 	"github.com/illikainen/go-cryptor/src/blob"
 	"github.com/illikainen/go-cryptor/src/cryptor"
 	"github.com/illikainen/go-utils/src/cobrax"
+	"github.com/illikainen/go-utils/src/errorx"
 	"github.com/illikainen/go-utils/src/process"
 	"github.com/illikainen/go-utils/src/sandbox"
 	"github.com/samber/lo"
@@ -75,26 +77,29 @@ func encryptRun(_ *cobra.Command, _ []string) error {
 		return err
 	}
 
-	bundle, err := blob.New(blob.Config{
-		Type: metadata.Name(),
-		Path: encryptOpts.Output,
-		Keys: keys,
+	writer, err := os.Create(encryptOpts.Output)
+	if err != nil {
+		return err
+	}
+	defer errorx.Defer(writer.Close, &err)
+
+	bundle, err := blob.NewWriter(writer, &blob.Options{
+		Type:      metadata.Name(),
+		Keyring:   keys,
+		Encrypted: true,
 	})
 	if err != nil {
 		return err
 	}
+	defer errorx.Defer(bundle.Close, &err)
 
-	err = bundle.Import(encryptOpts.Input, nil)
+	reader, err := os.Open(encryptOpts.Input)
 	if err != nil {
 		return err
 	}
+	defer errorx.Defer(reader.Close, &err)
 
-	err = bundle.Encrypt()
-	if err != nil {
-		return err
-	}
-
-	err = bundle.Sign()
+	_, err = io.Copy(bundle, reader)
 	if err != nil {
 		return err
 	}

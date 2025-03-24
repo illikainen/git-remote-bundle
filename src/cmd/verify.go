@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"io"
 	"os"
 
 	"github.com/illikainen/git-remote-bundle/src/git"
@@ -9,6 +10,7 @@ import (
 	"github.com/illikainen/go-cryptor/src/blob"
 	"github.com/illikainen/go-cryptor/src/cryptor"
 	"github.com/illikainen/go-utils/src/cobrax"
+	"github.com/illikainen/go-utils/src/errorx"
 	"github.com/illikainen/go-utils/src/process"
 	"github.com/illikainen/go-utils/src/sandbox"
 	"github.com/samber/lo"
@@ -36,7 +38,7 @@ func init() {
 	rootCmd.AddCommand(verifyCmd)
 }
 
-func verifyRun(_ *cobra.Command, _ []string) error {
+func verifyRun(_ *cobra.Command, _ []string) (err error) {
 	if sandbox.Compatible() && !sandbox.IsSandboxed() {
 		ro := []string{verifyOpts.Input}
 		rw := []string{}
@@ -78,27 +80,39 @@ func verifyRun(_ *cobra.Command, _ []string) error {
 		return err
 	}
 
-	bundle, err := blob.New(blob.Config{
-		Type: metadata.Name(),
-		Path: verifyOpts.Input,
-		Keys: keys,
+	inf, err := os.Open(verifyOpts.Input)
+	if err != nil {
+		return err
+	}
+	defer errorx.Defer(inf.Close, &err)
+
+	bundle, err := blob.NewReader(inf, &blob.Options{
+		Type:      metadata.Name(),
+		Keyring:   keys,
+		Encrypted: git.Encrypt(),
 	})
 	if err != nil {
 		return err
 	}
-
-	meta, err := bundle.Verify(verifyOpts.Output)
-	if err != nil {
-		return err
-	}
-
-	if !meta.Encrypted {
-		log.Warnf("be aware that %s is unencrypted", verifyOpts.Input)
-	}
-
 	if verifyOpts.Output == "" {
+		_, err := io.Copy(io.Discard, bundle)
+		if err != nil {
+			return nil
+		}
+
 		log.Infof("successfully verified %s", verifyOpts.Input)
 	} else {
+		outf, err := os.Create(verifyOpts.Output)
+		if err != nil {
+			return err
+		}
+		defer errorx.Defer(outf.Close, &err)
+
+		_, err = io.Copy(outf, bundle)
+		if err != nil {
+			return err
+		}
+
 		log.Infof("successfully verified %s and wrote the verified data to %s",
 			verifyOpts.Input, verifyOpts.Output)
 	}

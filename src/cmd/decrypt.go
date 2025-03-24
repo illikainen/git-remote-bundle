@@ -1,8 +1,8 @@
 package cmd
 
 import (
+	"io"
 	"os"
-	"path/filepath"
 
 	"github.com/illikainen/git-remote-bundle/src/git"
 	"github.com/illikainen/git-remote-bundle/src/metadata"
@@ -11,10 +11,8 @@ import (
 	"github.com/illikainen/go-cryptor/src/cryptor"
 	"github.com/illikainen/go-utils/src/cobrax"
 	"github.com/illikainen/go-utils/src/errorx"
-	"github.com/illikainen/go-utils/src/iofs"
 	"github.com/illikainen/go-utils/src/process"
 	"github.com/illikainen/go-utils/src/sandbox"
-	"github.com/pkg/errors"
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
@@ -81,32 +79,28 @@ func decryptRun(_ *cobra.Command, _ []string) (err error) {
 		return err
 	}
 
-	bundle, err := blob.New(blob.Config{
-		Type: metadata.Name(),
-		Path: decryptOpts.Input,
-		Keys: keys,
+	reader, err := os.Open(decryptOpts.Input)
+	if err != nil {
+		return err
+	}
+	defer errorx.Defer(reader.Close, &err)
+
+	bundle, err := blob.NewReader(reader, &blob.Options{
+		Type:      metadata.Name(),
+		Keyring:   keys,
+		Encrypted: true,
 	})
 	if err != nil {
 		return err
 	}
 
-	tmpDir, tmpClean, err := iofs.MkdirTemp()
+	writer, err := os.Create(decryptOpts.Output)
 	if err != nil {
 		return err
 	}
-	defer errorx.Defer(tmpClean, &err)
+	defer errorx.Defer(writer.Close, &err)
 
-	tmpCiphertext := filepath.Join(tmpDir, "ciphertext")
-	meta, err := bundle.Verify(tmpCiphertext)
-	if err != nil {
-		return err
-	}
-
-	if !meta.Encrypted {
-		return errors.Errorf("%s is not encrypted", decryptOpts.Input)
-	}
-
-	err = bundle.Decrypt(tmpCiphertext, decryptOpts.Output, meta.Keys)
+	_, err = io.Copy(writer, bundle)
 	if err != nil {
 		return err
 	}

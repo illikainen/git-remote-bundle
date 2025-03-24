@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"io"
 	"os"
 
 	"github.com/illikainen/git-remote-bundle/src/git"
@@ -9,6 +10,7 @@ import (
 	"github.com/illikainen/go-cryptor/src/blob"
 	"github.com/illikainen/go-cryptor/src/cryptor"
 	"github.com/illikainen/go-utils/src/cobrax"
+	"github.com/illikainen/go-utils/src/errorx"
 	"github.com/illikainen/go-utils/src/process"
 	"github.com/illikainen/go-utils/src/sandbox"
 	"github.com/samber/lo"
@@ -37,7 +39,7 @@ func init() {
 	rootCmd.AddCommand(signCmd)
 }
 
-func signRun(_ *cobra.Command, _ []string) error {
+func signRun(_ *cobra.Command, _ []string) (err error) {
 	if sandbox.Compatible() && !sandbox.IsSandboxed() {
 		ro := []string{signOpts.Input}
 		rw := []string{signOpts.Output}
@@ -75,16 +77,29 @@ func signRun(_ *cobra.Command, _ []string) error {
 		return err
 	}
 
-	bundle, err := blob.New(blob.Config{
-		Type: metadata.Name(),
-		Path: signOpts.Output,
-		Keys: keys,
+	writer, err := os.Create(signOpts.Output)
+	if err != nil {
+		return err
+	}
+	defer errorx.Defer(writer.Close, &err)
+
+	bundle, err := blob.NewWriter(writer, &blob.Options{
+		Type:      metadata.Name(),
+		Keyring:   keys,
+		Encrypted: false,
 	})
 	if err != nil {
 		return err
 	}
+	defer errorx.Defer(bundle.Close, &err)
 
-	err = bundle.Import(signOpts.Input, nil)
+	reader, err := os.Open(signOpts.Input)
+	if err != nil {
+		return err
+	}
+	defer errorx.Defer(reader.Close, &err)
+
+	_, err = io.Copy(bundle, reader)
 	if err != nil {
 		return err
 	}
