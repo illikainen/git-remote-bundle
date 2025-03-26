@@ -11,7 +11,7 @@ import (
 )
 
 var rootOpts struct {
-	logLevel string
+	verbosity string
 }
 
 var rootCmd = &cobra.Command{
@@ -40,8 +40,8 @@ func init() {
 	}
 
 	flags.StringVarP(
-		&rootOpts.logLevel,
-		"log-level",
+		&rootOpts.verbosity,
+		"verbosity",
 		"",
 		"info",
 		fmt.Sprintf("Log level (%s)", strings.Join(levels, ", ")),
@@ -49,11 +49,11 @@ func init() {
 }
 
 func rootPreRun(_ *cobra.Command, _ []string) error {
-	level, err := log.ParseLevel(rootOpts.logLevel)
+	verbosity, err := log.ParseLevel(rootOpts.verbosity)
 	if err != nil {
 		return err
 	}
 
-	log.SetLevel(level)
+	log.SetLevel(verbosity)
 	return nil
 }
