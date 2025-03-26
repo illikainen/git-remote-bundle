@@ -8,9 +8,9 @@ import (
 	"github.com/illikainen/git-remote-bundle/src/metadata"
 
 	"github.com/illikainen/go-cryptor/src/blob"
-	"github.com/illikainen/go-cryptor/src/cryptor"
 	"github.com/illikainen/go-utils/src/cobrax"
 	"github.com/illikainen/go-utils/src/errorx"
+	"github.com/illikainen/go-utils/src/flag"
 	"github.com/illikainen/go-utils/src/process"
 	"github.com/illikainen/go-utils/src/sandbox"
 	"github.com/samber/lo"
@@ -19,7 +19,8 @@ import (
 )
 
 var signOpts struct {
-	cryptor.SignOptions
+	input  flag.Path
+	output flag.Path
 }
 
 var signCmd = &cobra.Command{
@@ -29,11 +30,14 @@ var signCmd = &cobra.Command{
 }
 
 func init() {
-	flags := cryptor.SignFlags(cryptor.SignConfig{
-		Options: &signOpts.SignOptions,
-	})
-	signCmd.Flags().AddFlagSet(flags)
+	flags := signCmd.Flags()
+
+	signOpts.input.State = flag.MustExist
+	flags.VarP(&signOpts.input, "input", "i", "File to sign")
 	lo.Must0(signCmd.MarkFlagRequired("input"))
+
+	signOpts.output.State = flag.MustNotExist
+	flags.VarP(&signOpts.output, "output", "o", "File to write the signed blob to")
 	lo.Must0(signCmd.MarkFlagRequired("output"))
 
 	rootCmd.AddCommand(signCmd)
@@ -41,8 +45,8 @@ func init() {
 
 func signRun(_ *cobra.Command, _ []string) (err error) {
 	if sandbox.Compatible() && !sandbox.IsSandboxed() {
-		ro := []string{signOpts.Input}
-		rw := []string{signOpts.Output}
+		ro := []string{signOpts.input.String()}
+		rw := []string{signOpts.output.String()}
 
 		gitRO, gitRW, err := git.SandboxPaths()
 		if err != nil {
@@ -52,7 +56,7 @@ func signRun(_ *cobra.Command, _ []string) (err error) {
 		rw = append(rw, gitRW...)
 
 		// Required to mount the file in the sandbox.
-		f, err := os.Create(signOpts.Output)
+		f, err := os.Create(signOpts.output.String())
 		if err != nil {
 			return err
 		}
@@ -77,7 +81,7 @@ func signRun(_ *cobra.Command, _ []string) (err error) {
 		return err
 	}
 
-	writer, err := os.Create(signOpts.Output)
+	writer, err := os.Create(signOpts.output.String())
 	if err != nil {
 		return err
 	}
@@ -93,7 +97,7 @@ func signRun(_ *cobra.Command, _ []string) (err error) {
 	}
 	defer errorx.Defer(bundle.Close, &err)
 
-	reader, err := os.Open(signOpts.Input)
+	reader, err := os.Open(signOpts.input.String())
 	if err != nil {
 		return err
 	}
@@ -109,6 +113,6 @@ func signRun(_ *cobra.Command, _ []string) (err error) {
 		return err
 	}
 
-	log.Infof("successfully wrote signed blob to %s", signOpts.Output)
+	log.Infof("successfully wrote signed blob to %s", signOpts.output.String())
 	return nil
 }

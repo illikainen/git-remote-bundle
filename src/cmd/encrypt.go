@@ -8,9 +8,9 @@ import (
 	"github.com/illikainen/git-remote-bundle/src/metadata"
 
 	"github.com/illikainen/go-cryptor/src/blob"
-	"github.com/illikainen/go-cryptor/src/cryptor"
 	"github.com/illikainen/go-utils/src/cobrax"
 	"github.com/illikainen/go-utils/src/errorx"
+	"github.com/illikainen/go-utils/src/flag"
 	"github.com/illikainen/go-utils/src/process"
 	"github.com/illikainen/go-utils/src/sandbox"
 	"github.com/samber/lo"
@@ -19,7 +19,8 @@ import (
 )
 
 var encryptOpts struct {
-	cryptor.EncryptOptions
+	input  flag.Path
+	output flag.Path
 }
 
 var encryptCmd = &cobra.Command{
@@ -29,11 +30,14 @@ var encryptCmd = &cobra.Command{
 }
 
 func init() {
-	flags := cryptor.EncryptFlags(cryptor.EncryptConfig{
-		Options: &encryptOpts.EncryptOptions,
-	})
-	encryptCmd.Flags().AddFlagSet(flags)
+	flags := encryptCmd.Flags()
+
+	encryptOpts.input.State = flag.MustExist
+	flags.VarP(&encryptOpts.input, "input", "i", "File to encrypt")
 	lo.Must0(encryptCmd.MarkFlagRequired("input"))
+
+	encryptOpts.output.State = flag.MustNotExist
+	flags.VarP(&encryptOpts.output, "output", "o", "Output file for the encrypted blob")
 	lo.Must0(encryptCmd.MarkFlagRequired("output"))
 
 	rootCmd.AddCommand(encryptCmd)
@@ -41,8 +45,8 @@ func init() {
 
 func encryptRun(_ *cobra.Command, _ []string) error {
 	if sandbox.Compatible() && !sandbox.IsSandboxed() {
-		ro := []string{encryptOpts.Input}
-		rw := []string{encryptOpts.Output}
+		ro := []string{encryptOpts.input.String()}
+		rw := []string{encryptOpts.output.String()}
 
 		gitRO, gitRW, err := git.SandboxPaths()
 		if err != nil {
@@ -52,7 +56,7 @@ func encryptRun(_ *cobra.Command, _ []string) error {
 		rw = append(rw, gitRW...)
 
 		// Required to mount the file in the sandbox.
-		f, err := os.Create(encryptOpts.Output)
+		f, err := os.Create(encryptOpts.output.String())
 		if err != nil {
 			return err
 		}
@@ -77,7 +81,7 @@ func encryptRun(_ *cobra.Command, _ []string) error {
 		return err
 	}
 
-	writer, err := os.Create(encryptOpts.Output)
+	writer, err := os.Create(encryptOpts.output.String())
 	if err != nil {
 		return err
 	}
@@ -93,7 +97,7 @@ func encryptRun(_ *cobra.Command, _ []string) error {
 	}
 	defer errorx.Defer(bundle.Close, &err)
 
-	reader, err := os.Open(encryptOpts.Input)
+	reader, err := os.Open(encryptOpts.input.String())
 	if err != nil {
 		return err
 	}
@@ -104,6 +108,6 @@ func encryptRun(_ *cobra.Command, _ []string) error {
 		return err
 	}
 
-	log.Infof("successfully wrote signed and encrypted blob to %s", encryptOpts.Output)
+	log.Infof("successfully wrote signed and encrypted blob to %s", encryptOpts.output.String())
 	return nil
 }

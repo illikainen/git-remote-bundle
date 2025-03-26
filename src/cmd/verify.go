@@ -8,9 +8,9 @@ import (
 	"github.com/illikainen/git-remote-bundle/src/metadata"
 
 	"github.com/illikainen/go-cryptor/src/blob"
-	"github.com/illikainen/go-cryptor/src/cryptor"
 	"github.com/illikainen/go-utils/src/cobrax"
 	"github.com/illikainen/go-utils/src/errorx"
+	"github.com/illikainen/go-utils/src/flag"
 	"github.com/illikainen/go-utils/src/process"
 	"github.com/illikainen/go-utils/src/sandbox"
 	"github.com/samber/lo"
@@ -19,7 +19,8 @@ import (
 )
 
 var verifyOpts struct {
-	cryptor.VerifyOptions
+	input  flag.Path
+	output flag.Path
 }
 
 var verifyCmd = &cobra.Command{
@@ -29,18 +30,21 @@ var verifyCmd = &cobra.Command{
 }
 
 func init() {
-	flags := cryptor.VerifyFlags(cryptor.VerifyConfig{
-		Options: &verifyOpts.VerifyOptions,
-	})
-	verifyCmd.Flags().AddFlagSet(flags)
+	flags := verifyCmd.Flags()
+
+	verifyOpts.input.State = flag.MustExist
+	flags.VarP(&verifyOpts.input, "input", "i", "File to verify")
 	lo.Must0(verifyCmd.MarkFlagRequired("input"))
+
+	verifyOpts.output.State = flag.MustNotExist
+	flags.VarP(&verifyOpts.output, "output", "o", "Output file for the verified blob")
 
 	rootCmd.AddCommand(verifyCmd)
 }
 
 func verifyRun(_ *cobra.Command, _ []string) (err error) {
 	if sandbox.Compatible() && !sandbox.IsSandboxed() {
-		ro := []string{verifyOpts.Input}
+		ro := []string{verifyOpts.input.String()}
 		rw := []string{}
 
 		gitRO, gitRW, err := git.SandboxPaths()
@@ -50,9 +54,9 @@ func verifyRun(_ *cobra.Command, _ []string) (err error) {
 		ro = append(ro, gitRO...)
 		rw = append(rw, gitRW...)
 
-		if verifyOpts.Output != "" {
+		if verifyOpts.output.String() != "" {
 			// Required to mount the file in the sandbox.
-			f, err := os.Create(verifyOpts.Output)
+			f, err := os.Create(verifyOpts.output.String())
 			if err != nil {
 				return err
 			}
@@ -62,7 +66,7 @@ func verifyRun(_ *cobra.Command, _ []string) (err error) {
 				return err
 			}
 
-			rw = append(rw, verifyOpts.Output)
+			rw = append(rw, verifyOpts.output.String())
 		}
 
 		_, err = sandbox.Exec(sandbox.Options{
@@ -80,7 +84,7 @@ func verifyRun(_ *cobra.Command, _ []string) (err error) {
 		return err
 	}
 
-	inf, err := os.Open(verifyOpts.Input)
+	inf, err := os.Open(verifyOpts.input.String())
 	if err != nil {
 		return err
 	}
@@ -94,15 +98,15 @@ func verifyRun(_ *cobra.Command, _ []string) (err error) {
 	if err != nil {
 		return err
 	}
-	if verifyOpts.Output == "" {
+	if verifyOpts.output.String() == "" {
 		_, err := io.Copy(io.Discard, bundle)
 		if err != nil {
 			return nil
 		}
 
-		log.Infof("successfully verified %s", verifyOpts.Input)
+		log.Infof("successfully verified %s", verifyOpts.input.String())
 	} else {
-		outf, err := os.Create(verifyOpts.Output)
+		outf, err := os.Create(verifyOpts.output.String())
 		if err != nil {
 			return err
 		}
@@ -114,7 +118,7 @@ func verifyRun(_ *cobra.Command, _ []string) (err error) {
 		}
 
 		log.Infof("successfully verified %s and wrote the verified data to %s",
-			verifyOpts.Input, verifyOpts.Output)
+			verifyOpts.input.String(), verifyOpts.output.String())
 	}
 	return nil
 }

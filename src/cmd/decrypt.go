@@ -8,9 +8,9 @@ import (
 	"github.com/illikainen/git-remote-bundle/src/metadata"
 
 	"github.com/illikainen/go-cryptor/src/blob"
-	"github.com/illikainen/go-cryptor/src/cryptor"
 	"github.com/illikainen/go-utils/src/cobrax"
 	"github.com/illikainen/go-utils/src/errorx"
+	"github.com/illikainen/go-utils/src/flag"
 	"github.com/illikainen/go-utils/src/process"
 	"github.com/illikainen/go-utils/src/sandbox"
 	"github.com/samber/lo"
@@ -19,7 +19,8 @@ import (
 )
 
 var decryptOpts struct {
-	cryptor.DecryptOptions
+	input  flag.Path
+	output flag.Path
 }
 
 var decryptCmd = &cobra.Command{
@@ -29,13 +30,14 @@ var decryptCmd = &cobra.Command{
 }
 
 func init() {
-	flags := cryptor.DecryptFlags(cryptor.DecryptConfig{
-		Options: &decryptOpts.DecryptOptions,
-	})
-	lo.Must0(flags.MarkHidden("extract"))
+	flags := decryptCmd.Flags()
 
-	decryptCmd.Flags().AddFlagSet(flags)
+	decryptOpts.input.State = flag.MustExist
+	flags.VarP(&decryptOpts.input, "input", "i", "File to decrypt")
 	lo.Must0(decryptCmd.MarkFlagRequired("input"))
+
+	decryptOpts.output.State = flag.MustNotExist
+	flags.VarP(&decryptOpts.output, "output", "o", "Output file for the decrypted blob")
 	lo.Must0(decryptCmd.MarkFlagRequired("output"))
 
 	rootCmd.AddCommand(decryptCmd)
@@ -43,8 +45,8 @@ func init() {
 
 func decryptRun(_ *cobra.Command, _ []string) (err error) {
 	if sandbox.Compatible() && !sandbox.IsSandboxed() {
-		ro := []string{decryptOpts.Input}
-		rw := []string{decryptOpts.Output}
+		ro := []string{decryptOpts.input.String()}
+		rw := []string{decryptOpts.output.String()}
 
 		gitRO, gitRW, err := git.SandboxPaths()
 		if err != nil {
@@ -54,7 +56,7 @@ func decryptRun(_ *cobra.Command, _ []string) (err error) {
 		rw = append(rw, gitRW...)
 
 		// Required to mount the file in the sandbox.
-		f, err := os.Create(decryptOpts.Output)
+		f, err := os.Create(decryptOpts.output.String())
 		if err != nil {
 			return err
 		}
@@ -79,7 +81,7 @@ func decryptRun(_ *cobra.Command, _ []string) (err error) {
 		return err
 	}
 
-	reader, err := os.Open(decryptOpts.Input)
+	reader, err := os.Open(decryptOpts.input.String())
 	if err != nil {
 		return err
 	}
@@ -94,7 +96,7 @@ func decryptRun(_ *cobra.Command, _ []string) (err error) {
 		return err
 	}
 
-	writer, err := os.Create(decryptOpts.Output)
+	writer, err := os.Create(decryptOpts.output.String())
 	if err != nil {
 		return err
 	}
@@ -105,6 +107,7 @@ func decryptRun(_ *cobra.Command, _ []string) (err error) {
 		return err
 	}
 
-	log.Infof("successfully verified and decrypted %s to %s", decryptOpts.Input, decryptOpts.Output)
+	log.Infof("successfully verified and decrypted %s to %s",
+		decryptOpts.input.String(), decryptOpts.output.String())
 	return nil
 }

@@ -8,9 +8,9 @@ import (
 	"github.com/illikainen/git-remote-bundle/src/metadata"
 
 	"github.com/illikainen/go-cryptor/src/blob"
-	"github.com/illikainen/go-cryptor/src/cryptor"
 	"github.com/illikainen/go-utils/src/cobrax"
 	"github.com/illikainen/go-utils/src/errorx"
+	"github.com/illikainen/go-utils/src/flag"
 	"github.com/illikainen/go-utils/src/process"
 	"github.com/illikainen/go-utils/src/sandbox"
 	"github.com/pkg/errors"
@@ -20,7 +20,8 @@ import (
 )
 
 var metadataOpts struct {
-	cryptor.VerifyOptions
+	input  flag.Path
+	output flag.Path
 }
 
 var metadataCmd = &cobra.Command{
@@ -31,18 +32,21 @@ var metadataCmd = &cobra.Command{
 }
 
 func init() {
-	flags := cryptor.VerifyFlags(cryptor.VerifyConfig{
-		Options: &metadataOpts.VerifyOptions,
-	})
-	metadataCmd.Flags().AddFlagSet(flags)
+	flags := metadataCmd.Flags()
+
+	metadataOpts.input.State = flag.MustExist
+	flags.VarP(&metadataOpts.input, "input", "i", "File to verify")
 	lo.Must0(metadataCmd.MarkFlagRequired("input"))
+
+	metadataOpts.output.State = flag.MustNotExist
+	flags.VarP(&metadataOpts.output, "output", "o", "Output file for the verified blob")
 
 	rootCmd.AddCommand(metadataCmd)
 }
 
 func metadataRun(_ *cobra.Command, _ []string) (err error) {
 	if sandbox.Compatible() && !sandbox.IsSandboxed() {
-		ro := []string{metadataOpts.Input}
+		ro := []string{metadataOpts.input.String()}
 		rw := []string{}
 
 		gitRO, gitRW, err := git.SandboxPaths()
@@ -52,9 +56,9 @@ func metadataRun(_ *cobra.Command, _ []string) (err error) {
 		ro = append(ro, gitRO...)
 		rw = append(rw, gitRW...)
 
-		if metadataOpts.Output != "" {
+		if metadataOpts.output.String() != "" {
 			// Required to mount the file in the sandbox.
-			f, err := os.Create(metadataOpts.Output)
+			f, err := os.Create(metadataOpts.output.String())
 			if err != nil {
 				return err
 			}
@@ -64,7 +68,7 @@ func metadataRun(_ *cobra.Command, _ []string) (err error) {
 				return err
 			}
 
-			rw = append(rw, metadataOpts.Output)
+			rw = append(rw, metadataOpts.output.String())
 		}
 
 		_, err = sandbox.Exec(sandbox.Options{
@@ -82,7 +86,7 @@ func metadataRun(_ *cobra.Command, _ []string) (err error) {
 		return err
 	}
 
-	f, err := os.Open(metadataOpts.Input)
+	f, err := os.Open(metadataOpts.input.String())
 	if err != nil {
 		return err
 	}
@@ -104,8 +108,8 @@ func metadataRun(_ *cobra.Command, _ []string) (err error) {
 	meta = append(meta, '\n')
 
 	log.Infof("%s", meta)
-	if metadataOpts.Output != "" {
-		f, err := os.Create(metadataOpts.Output)
+	if metadataOpts.output.String() != "" {
+		f, err := os.Create(metadataOpts.output.String())
 		if err != nil {
 			return err
 		}
@@ -119,7 +123,7 @@ func metadataRun(_ *cobra.Command, _ []string) (err error) {
 			return errors.Errorf("invalid write size")
 		}
 
-		log.Infof("successfully wrote metadata to %s", metadataOpts.Output)
+		log.Infof("successfully wrote metadata to %s", metadataOpts.output.String())
 	}
 
 	return nil
