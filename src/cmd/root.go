@@ -6,18 +6,20 @@ import (
 
 	"github.com/illikainen/git-remote-bundle/src/metadata"
 
+	"github.com/illikainen/go-utils/src/flag"
+	"github.com/illikainen/go-utils/src/logging"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 )
 
 var rootOpts struct {
-	verbosity string
+	verbosity logging.LogLevel
 }
 
 var rootCmd = &cobra.Command{
 	Use:     metadata.Name(),
 	Version: metadata.Version(),
-	PreRun: func(cmd *cobra.Command, args []string) {
+	PersistentPreRun: func(cmd *cobra.Command, args []string) {
 		err := rootPreRun(cmd, args)
 		if err != nil {
 			log.Tracef("%+v", err)
@@ -39,21 +41,15 @@ func init() {
 		levels = append(levels, level.String())
 	}
 
-	flags.StringVarP(
-		&rootOpts.verbosity,
-		"verbosity",
-		"",
-		"info",
-		fmt.Sprintf("Log level (%s)", strings.Join(levels, ", ")),
-	)
+	flags.Var(&rootOpts.verbosity, "verbosity", fmt.Sprintf("Verbosity (%s)", strings.Join(levels, ", ")))
 }
 
-func rootPreRun(_ *cobra.Command, _ []string) error {
-	verbosity, err := log.ParseLevel(rootOpts.verbosity)
-	if err != nil {
+func rootPreRun(cmd *cobra.Command, _ []string) error {
+	flags := cmd.Flags()
+
+	if err := flag.SetFallback(flags, "verbosity", "info"); err != nil {
 		return err
 	}
 
-	log.SetLevel(verbosity)
 	return nil
 }
