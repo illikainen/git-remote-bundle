@@ -35,19 +35,19 @@ func Communicate() (err error) {
 		return err
 	}
 
-	baseDir, err := BaseDir()
+	cacheDir, err := CacheDir()
 	if err != nil {
 		return err
 	}
 
-	err = os.MkdirAll(baseDir, 0700)
+	err = os.MkdirAll(cacheDir, 0700)
 	if err != nil {
 		return err
 	}
 
 	if sandbox.Compatible() && !sandbox.IsSandboxed() {
 		ro := []string{}
-		rw := []string{baseDir}
+		rw := []string{cacheDir}
 
 		gitRO, gitRW, err := SandboxPaths()
 		if err != nil {
@@ -107,7 +107,7 @@ func Communicate() (err error) {
 		return err
 	}
 
-	bundleFile, err := os.OpenFile(filepath.Join(baseDir, filepath.Base(uri.Path)),
+	bundleFile, err := os.OpenFile(filepath.Join(cacheDir, filepath.Base(uri.Path)),
 		os.O_RDWR|os.O_CREATE, 0600)
 	if err != nil {
 		return err

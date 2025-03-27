@@ -61,8 +61,8 @@ func ReadKeyring() (*blob.Keyring, error) {
 	}, nil
 }
 
-func BaseDir() (string, error) {
-	baseDirs, err := ConfigSlice("bundle.baseDir", "path")
+func CacheDir() (string, error) {
+	baseDirs, err := ConfigSlice("bundle.cacheDir", "path")
 	if err == nil && len(baseDirs) == 1 {
 		return baseDirs[0], nil
 	}
