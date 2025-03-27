@@ -75,18 +75,17 @@ func CacheDir() (string, error) {
 	return filepath.Join(cache, metadata.Name()), nil
 }
 
-func LogLevel() log.Level {
-	logLevels, err := ConfigSlice("bundle.logLevel", "path")
-	if err == nil && len(logLevels) == 1 {
-		level, err := log.ParseLevel(logLevels[0])
-		if err == nil {
-			return level
-		}
-
-		log.Warnf("bundle.logLevel: %s", err)
+func Verbosity() (string, error) {
+	verbosities, err := ConfigSlice("bundle.verbosity", "path")
+	if err != nil {
+		return "", err
 	}
 
-	return log.InfoLevel
+	if len(verbosities) == 1 {
+		return verbosities[0], nil
+	}
+
+	return "info", nil
 }
 
 func Encrypt() bool {

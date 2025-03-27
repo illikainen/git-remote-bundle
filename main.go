@@ -21,7 +21,6 @@ func main() {
 	if !sandbox.IsSandboxed() {
 		log.SetFormatter(&logging.SanitizedTextFormatter{})
 	}
-	log.SetLevel(git.LogLevel())
 
 	ensure.Unprivileged()
 
