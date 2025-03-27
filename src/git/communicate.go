@@ -13,11 +13,8 @@ import (
 	"github.com/illikainen/git-remote-bundle/src/metadata"
 
 	"github.com/illikainen/go-cryptor/src/blob"
-	"github.com/illikainen/go-netutils/src/sshx"
 	"github.com/illikainen/go-utils/src/errorx"
 	"github.com/illikainen/go-utils/src/iofs"
-	"github.com/illikainen/go-utils/src/process"
-	"github.com/illikainen/go-utils/src/sandbox"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 )
@@ -25,83 +22,7 @@ import (
 var ErrMissingArguments = errors.New("missing arguments")
 var ErrInvalidCommand = errors.New("invalid command")
 
-func Communicate() (err error) {
-	if len(os.Args) != 3 {
-		return ErrMissingArguments
-	}
-
-	uri, err := url.Parse(os.Args[2])
-	if err != nil {
-		return err
-	}
-
-	cacheDir, err := CacheDir()
-	if err != nil {
-		return err
-	}
-
-	err = os.MkdirAll(cacheDir, 0700)
-	if err != nil {
-		return err
-	}
-
-	if sandbox.Compatible() && !sandbox.IsSandboxed() {
-		ro := []string{}
-		rw := []string{cacheDir}
-
-		gitRO, gitRW, err := SandboxPaths()
-		if err != nil {
-			return err
-		}
-		ro = append(ro, gitRO...)
-		rw = append(rw, gitRW...)
-
-		sshRO, sshRW, err := sshx.SandboxPaths()
-		if err != nil {
-			return err
-		}
-		ro = append(ro, sshRO...)
-		rw = append(rw, sshRW...)
-
-		// Required to mount the file in the sandbox.
-		if uri.Scheme == "file" {
-			path, err := expand(uri.Path)
-			if err != nil {
-				return err
-			}
-
-			exists, err := iofs.Exists(path)
-			if err != nil {
-				return err
-			}
-
-			if !exists {
-				f, err := os.Create(path)
-				if err != nil {
-					return err
-				}
-
-				err = f.Close()
-				if err != nil {
-					return err
-				}
-			}
-
-			rw = append(rw, path)
-		}
-
-		_, err = sandbox.Exec(sandbox.Options{
-			Command: os.Args,
-			RO:      ro,
-			RW:      rw,
-			Share:   sandbox.ShareNet,
-			Stdin:   os.Stdin,
-			Stdout:  process.ByteOutput,
-			Stderr:  process.LogrusOutput,
-		})
-		return err
-	}
-
+func Communicate(uri *url.URL, cacheDir string) (err error) {
 	keys, err := ReadKeyring()
 	if err != nil {
 		return err
