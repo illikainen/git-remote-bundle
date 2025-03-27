@@ -11,8 +11,6 @@ import (
 	"github.com/illikainen/go-utils/src/cobrax"
 	"github.com/illikainen/go-utils/src/errorx"
 	"github.com/illikainen/go-utils/src/flag"
-	"github.com/illikainen/go-utils/src/process"
-	"github.com/illikainen/go-utils/src/sandbox"
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
@@ -37,6 +35,7 @@ func init() {
 	lo.Must0(encryptCmd.MarkFlagRequired("input"))
 
 	encryptOpts.output.State = flag.MustNotExist
+	encryptOpts.output.Mode = flag.ReadWriteMode
 	flags.VarP(&encryptOpts.output, "output", "o", "Output file for the encrypted blob")
 	lo.Must0(encryptCmd.MarkFlagRequired("output"))
 
@@ -44,38 +43,6 @@ func init() {
 }
 
 func encryptRun(_ *cobra.Command, _ []string) error {
-	if sandbox.Compatible() && !sandbox.IsSandboxed() {
-		ro := []string{encryptOpts.input.String()}
-		rw := []string{encryptOpts.output.String()}
-
-		gitRO, gitRW, err := git.SandboxPaths()
-		if err != nil {
-			return err
-		}
-		ro = append(ro, gitRO...)
-		rw = append(rw, gitRW...)
-
-		// Required to mount the file in the sandbox.
-		f, err := os.Create(encryptOpts.output.String())
-		if err != nil {
-			return err
-		}
-
-		err = f.Close()
-		if err != nil {
-			return err
-		}
-
-		_, err = sandbox.Exec(sandbox.Options{
-			Command: os.Args,
-			RO:      ro,
-			RW:      rw,
-			Stdout:  process.LogrusOutput,
-			Stderr:  process.LogrusOutput,
-		})
-		return err
-	}
-
 	keys, err := git.ReadKeyring()
 	if err != nil {
 		return err

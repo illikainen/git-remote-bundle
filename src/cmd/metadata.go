@@ -11,8 +11,6 @@ import (
 	"github.com/illikainen/go-utils/src/cobrax"
 	"github.com/illikainen/go-utils/src/errorx"
 	"github.com/illikainen/go-utils/src/flag"
-	"github.com/illikainen/go-utils/src/process"
-	"github.com/illikainen/go-utils/src/sandbox"
 	"github.com/pkg/errors"
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
@@ -45,42 +43,6 @@ func init() {
 }
 
 func metadataRun(_ *cobra.Command, _ []string) (err error) {
-	if sandbox.Compatible() && !sandbox.IsSandboxed() {
-		ro := []string{metadataOpts.input.String()}
-		rw := []string{}
-
-		gitRO, gitRW, err := git.SandboxPaths()
-		if err != nil {
-			return err
-		}
-		ro = append(ro, gitRO...)
-		rw = append(rw, gitRW...)
-
-		if metadataOpts.output.String() != "" {
-			// Required to mount the file in the sandbox.
-			f, err := os.Create(metadataOpts.output.String())
-			if err != nil {
-				return err
-			}
-
-			err = f.Close()
-			if err != nil {
-				return err
-			}
-
-			rw = append(rw, metadataOpts.output.String())
-		}
-
-		_, err = sandbox.Exec(sandbox.Options{
-			Command: os.Args,
-			RO:      ro,
-			RW:      rw,
-			Stdout:  process.LogrusOutput,
-			Stderr:  process.LogrusOutput,
-		})
-		return err
-	}
-
 	keys, err := git.ReadKeyring()
 	if err != nil {
 		return err

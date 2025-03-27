@@ -11,8 +11,6 @@ import (
 	"github.com/illikainen/go-utils/src/cobrax"
 	"github.com/illikainen/go-utils/src/errorx"
 	"github.com/illikainen/go-utils/src/flag"
-	"github.com/illikainen/go-utils/src/process"
-	"github.com/illikainen/go-utils/src/sandbox"
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
@@ -37,6 +35,7 @@ func init() {
 	lo.Must0(signCmd.MarkFlagRequired("input"))
 
 	signOpts.output.State = flag.MustNotExist
+	signOpts.output.Mode = flag.ReadWriteMode
 	flags.VarP(&signOpts.output, "output", "o", "File to write the signed blob to")
 	lo.Must0(signCmd.MarkFlagRequired("output"))
 
@@ -44,38 +43,6 @@ func init() {
 }
 
 func signRun(_ *cobra.Command, _ []string) (err error) {
-	if sandbox.Compatible() && !sandbox.IsSandboxed() {
-		ro := []string{signOpts.input.String()}
-		rw := []string{signOpts.output.String()}
-
-		gitRO, gitRW, err := git.SandboxPaths()
-		if err != nil {
-			return err
-		}
-		ro = append(ro, gitRO...)
-		rw = append(rw, gitRW...)
-
-		// Required to mount the file in the sandbox.
-		f, err := os.Create(signOpts.output.String())
-		if err != nil {
-			return err
-		}
-
-		err = f.Close()
-		if err != nil {
-			return err
-		}
-
-		_, err = sandbox.Exec(sandbox.Options{
-			Command: os.Args,
-			RO:      ro,
-			RW:      rw,
-			Stdout:  process.LogrusOutput,
-			Stderr:  process.LogrusOutput,
-		})
-		return err
-	}
-
 	keys, err := git.ReadKeyring()
 	if err != nil {
 		return err

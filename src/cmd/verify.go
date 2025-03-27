@@ -11,8 +11,6 @@ import (
 	"github.com/illikainen/go-utils/src/cobrax"
 	"github.com/illikainen/go-utils/src/errorx"
 	"github.com/illikainen/go-utils/src/flag"
-	"github.com/illikainen/go-utils/src/process"
-	"github.com/illikainen/go-utils/src/sandbox"
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
@@ -37,48 +35,13 @@ func init() {
 	lo.Must0(verifyCmd.MarkFlagRequired("input"))
 
 	verifyOpts.output.State = flag.MustNotExist
+	verifyOpts.output.Mode = flag.ReadWriteMode
 	flags.VarP(&verifyOpts.output, "output", "o", "Output file for the verified blob")
 
 	rootCmd.AddCommand(verifyCmd)
 }
 
 func verifyRun(_ *cobra.Command, _ []string) (err error) {
-	if sandbox.Compatible() && !sandbox.IsSandboxed() {
-		ro := []string{verifyOpts.input.String()}
-		rw := []string{}
-
-		gitRO, gitRW, err := git.SandboxPaths()
-		if err != nil {
-			return err
-		}
-		ro = append(ro, gitRO...)
-		rw = append(rw, gitRW...)
-
-		if verifyOpts.output.String() != "" {
-			// Required to mount the file in the sandbox.
-			f, err := os.Create(verifyOpts.output.String())
-			if err != nil {
-				return err
-			}
-
-			err = f.Close()
-			if err != nil {
-				return err
-			}
-
-			rw = append(rw, verifyOpts.output.String())
-		}
-
-		_, err = sandbox.Exec(sandbox.Options{
-			Command: os.Args,
-			RO:      ro,
-			RW:      rw,
-			Stdout:  process.LogrusOutput,
-			Stderr:  process.LogrusOutput,
-		})
-		return err
-	}
-
 	keys, err := git.ReadKeyring()
 	if err != nil {
 		return err

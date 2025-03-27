@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/illikainen/git-remote-bundle/src/metadata"
+	"github.com/illikainen/git-remote-bundle/src/sandbox"
 
 	"github.com/illikainen/go-utils/src/flag"
 	"github.com/illikainen/go-utils/src/logging"
@@ -51,5 +52,5 @@ func rootPreRun(cmd *cobra.Command, _ []string) error {
 		return err
 	}
 
-	return nil
+	return sandbox.Exec(cmd.CalledAs(), flags)
 }
