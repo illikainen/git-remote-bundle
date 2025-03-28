@@ -11,54 +11,24 @@ import (
 
 	"github.com/illikainen/git-remote-bundle/src/metadata"
 
-	"github.com/illikainen/go-cryptor/src/asymmetric"
 	"github.com/illikainen/go-cryptor/src/blob"
-	"github.com/illikainen/go-cryptor/src/cryptor"
 	"github.com/illikainen/go-utils/src/iofs"
 	"github.com/illikainen/go-utils/src/stringx"
 	log "github.com/sirupsen/logrus"
 )
 
 func ReadKeyring() (*blob.Keyring, error) {
-	pubPaths, err := ConfigSlice("bundle.pubKeys", "path")
+	privkey, err := Config("bundle.privKey", "path")
 	if err != nil {
 		return nil, err
 	}
 
-	pubKeys := []cryptor.PublicKey{}
-	for _, path := range pubPaths {
-		realPath, err := expand(path)
-		if err != nil {
-			return nil, err
-		}
-
-		pubKey, err := asymmetric.ReadPublicKey(realPath)
-		if err != nil {
-			return nil, err
-		}
-
-		pubKeys = append(pubKeys, pubKey)
-	}
-
-	privPath, err := Config("bundle.privKey", "path")
+	pubkeys, err := ConfigSlice("bundle.pubKeys", "path")
 	if err != nil {
 		return nil, err
 	}
 
-	realPrivPath, err := expand(privPath)
-	if err != nil {
-		return nil, err
-	}
-
-	privKey, err := asymmetric.ReadPrivateKey(realPrivPath)
-	if err != nil {
-		return nil, err
-	}
-
-	return &blob.Keyring{
-		Public:  pubKeys,
-		Private: privKey,
-	}, nil
+	return blob.ReadKeyring(privkey, pubkeys)
 }
 
 func CacheDir() (string, error) {
