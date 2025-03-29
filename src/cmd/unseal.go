@@ -16,39 +16,39 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var decryptOpts struct {
+var unsealOpts struct {
 	input  flag.Path
 	output flag.Path
 }
 
-var decryptCmd = &cobra.Command{
-	Use:   "decrypt",
-	Short: "Decrypt a bundle",
-	Run:   cobrax.Run(decryptRun),
+var unsealCmd = &cobra.Command{
+	Use:   "unseal",
+	Short: "Verify and decrypt a bundle",
+	Run:   cobrax.Run(unsealRun),
 }
 
 func init() {
-	flags := decryptCmd.Flags()
+	flags := unsealCmd.Flags()
 
-	decryptOpts.input.State = flag.MustExist
-	flags.VarP(&decryptOpts.input, "input", "i", "File to decrypt")
-	lo.Must0(decryptCmd.MarkFlagRequired("input"))
+	unsealOpts.input.State = flag.MustExist
+	flags.VarP(&unsealOpts.input, "input", "i", "File to unseal")
+	lo.Must0(unsealCmd.MarkFlagRequired("input"))
 
-	decryptOpts.output.State = flag.MustNotExist
-	decryptOpts.output.Mode = flag.ReadWriteMode
-	flags.VarP(&decryptOpts.output, "output", "o", "Output file for the decrypted blob")
-	lo.Must0(decryptCmd.MarkFlagRequired("output"))
+	unsealOpts.output.State = flag.MustNotExist
+	unsealOpts.output.Mode = flag.ReadWriteMode
+	flags.VarP(&unsealOpts.output, "output", "o", "Output file for the unsealed blob")
+	lo.Must0(unsealCmd.MarkFlagRequired("output"))
 
-	rootCmd.AddCommand(decryptCmd)
+	rootCmd.AddCommand(unsealCmd)
 }
 
-func decryptRun(_ *cobra.Command, _ []string) (err error) {
+func unsealRun(_ *cobra.Command, _ []string) (err error) {
 	keys, err := git.ReadKeyring()
 	if err != nil {
 		return err
 	}
 
-	reader, err := os.Open(decryptOpts.input.String())
+	reader, err := os.Open(unsealOpts.input.String())
 	if err != nil {
 		return err
 	}
@@ -63,7 +63,7 @@ func decryptRun(_ *cobra.Command, _ []string) (err error) {
 		return err
 	}
 
-	writer, err := os.Create(decryptOpts.output.String())
+	writer, err := os.Create(unsealOpts.output.String())
 	if err != nil {
 		return err
 	}
@@ -74,7 +74,6 @@ func decryptRun(_ *cobra.Command, _ []string) (err error) {
 		return err
 	}
 
-	log.Infof("successfully verified and decrypted %s to %s",
-		decryptOpts.input.String(), decryptOpts.output.String())
+	log.Infof("successfully wrote unsealed blob to %s", unsealOpts.output.String())
 	return nil
 }
