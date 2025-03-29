@@ -16,39 +16,39 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var encryptOpts struct {
+var sealOpts struct {
 	input  flag.Path
 	output flag.Path
 }
 
-var encryptCmd = &cobra.Command{
-	Use:   "encrypt",
+var sealCmd = &cobra.Command{
+	Use:   "seal",
 	Short: "Encrypt and sign a bundle",
-	Run:   cobrax.Run(encryptRun),
+	Run:   cobrax.Run(sealRun),
 }
 
 func init() {
-	flags := encryptCmd.Flags()
+	flags := sealCmd.Flags()
 
-	encryptOpts.input.State = flag.MustExist
-	flags.VarP(&encryptOpts.input, "input", "i", "File to encrypt")
-	lo.Must0(encryptCmd.MarkFlagRequired("input"))
+	sealOpts.input.State = flag.MustExist
+	flags.VarP(&sealOpts.input, "input", "i", "Input file to seal")
+	lo.Must0(sealCmd.MarkFlagRequired("input"))
 
-	encryptOpts.output.State = flag.MustNotExist
-	encryptOpts.output.Mode = flag.ReadWriteMode
-	flags.VarP(&encryptOpts.output, "output", "o", "Output file for the encrypted blob")
-	lo.Must0(encryptCmd.MarkFlagRequired("output"))
+	sealOpts.output.State = flag.MustNotExist
+	sealOpts.output.Mode = flag.ReadWriteMode
+	flags.VarP(&sealOpts.output, "output", "o", "Output file for the sealed blob")
+	lo.Must0(sealCmd.MarkFlagRequired("output"))
 
-	rootCmd.AddCommand(encryptCmd)
+	rootCmd.AddCommand(sealCmd)
 }
 
-func encryptRun(_ *cobra.Command, _ []string) error {
+func sealRun(_ *cobra.Command, _ []string) error {
 	keys, err := git.ReadKeyring()
 	if err != nil {
 		return err
 	}
 
-	writer, err := os.Create(encryptOpts.output.String())
+	writer, err := os.Create(sealOpts.output.String())
 	if err != nil {
 		return err
 	}
@@ -64,7 +64,7 @@ func encryptRun(_ *cobra.Command, _ []string) error {
 	}
 	defer errorx.Defer(bundle.Close, &err)
 
-	reader, err := os.Open(encryptOpts.input.String())
+	reader, err := os.Open(sealOpts.input.String())
 	if err != nil {
 		return err
 	}
@@ -75,6 +75,6 @@ func encryptRun(_ *cobra.Command, _ []string) error {
 		return err
 	}
 
-	log.Infof("successfully wrote signed and encrypted blob to %s", encryptOpts.output.String())
+	log.Infof("successfully wrote sealed blob to %s", sealOpts.output.String())
 	return nil
 }
