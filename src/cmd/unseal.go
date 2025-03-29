@@ -17,8 +17,9 @@ import (
 )
 
 var unsealOpts struct {
-	input  flag.Path
-	output flag.Path
+	input      flag.Path
+	output     flag.Path
+	signedOnly bool
 }
 
 var unsealCmd = &cobra.Command{
@@ -39,6 +40,9 @@ func init() {
 	flags.VarP(&unsealOpts.output, "output", "o", "Output file for the unsealed blob")
 	lo.Must0(unsealCmd.MarkFlagRequired("output"))
 
+	flags.BoolVarP(&unsealOpts.signedOnly, "signed-only", "s", false,
+		"Required if the archive is signed but not encrypted")
+
 	rootCmd.AddCommand(unsealCmd)
 }
 
@@ -57,7 +61,7 @@ func unsealRun(_ *cobra.Command, _ []string) (err error) {
 	bundle, err := blob.NewReader(reader, &blob.Options{
 		Type:      metadata.Name(),
 		Keyring:   keys,
-		Encrypted: true,
+		Encrypted: !unsealOpts.signedOnly,
 	})
 	if err != nil {
 		return err
