@@ -67,6 +67,10 @@ func verifyRun(_ *cobra.Command, _ []string) (err error) {
 		return nil
 	}
 
+	log.Infof("signed by: %s", bundle.Signer)
+	log.Infof("sha2-256: %s", bundle.Metadata.Hashes.SHA256)
+	log.Infof("sha3-512: %s", bundle.Metadata.Hashes.KECCAK512)
+	log.Infof("blake2b-512: %s", bundle.Metadata.Hashes.BLAKE2b512)
 	log.Infof("successfully verified %s", verifyOpts.input.String())
 	return nil
 }
