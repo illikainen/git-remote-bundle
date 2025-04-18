@@ -181,6 +181,11 @@ func withRemoteBundle(bundleFile *os.File, uri *url.URL, keys *blob.Keyring, all
 			return err
 		}
 	} else {
+		log.Infof("%s: signed by %s", bundleFile.Name(), bundle.Signer)
+		log.Infof("%s: sha2-256: %s", bundleFile.Name(), bundle.Metadata.Hashes.SHA256)
+		log.Infof("%s: sha3-512: %s", bundleFile.Name(), bundle.Metadata.Hashes.KECCAK512)
+		log.Infof("%s: blake2b-512: %s", bundleFile.Name(), bundle.Metadata.Hashes.BLAKE2b512)
+
 		tmpBundle := filepath.Join(tmpDir, "bundle")
 		f, err := os.Create(tmpBundle)
 		if err != nil {
