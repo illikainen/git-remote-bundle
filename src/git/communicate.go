@@ -13,6 +13,7 @@ import (
 	"github.com/illikainen/git-remote-bundle/src/metadata"
 
 	"github.com/illikainen/go-cryptor/src/blob"
+	"github.com/illikainen/go-netutils/src/transport"
 	"github.com/illikainen/go-utils/src/errorx"
 	"github.com/illikainen/go-utils/src/iofs"
 	"github.com/pkg/errors"
@@ -171,7 +172,7 @@ func withRemoteBundle(bundleFile *os.File, uri *url.URL, keys *blob.Keyring, all
 		Encrypted: Encrypt(),
 	})
 	if err != nil {
-		if !allowMissing {
+		if !allowMissing || !errors.Is(err, transport.ErrNotExist) {
 			return err
 		}
 
