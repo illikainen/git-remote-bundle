@@ -38,8 +38,9 @@ func Exec(subcommand string, flags *pflag.FlagSet) error {
 		case *flag.URL:
 			if v.Value != nil && v.Value.Scheme == "file" {
 				paths = append(paths, &flag.Path{
-					Value: v.Value.Path,
+					Value: filepath.Dir(v.Value.Path),
 					Mode:  flag.ReadWriteMode,
+					State: flag.MustBeDir,
 				})
 			}
 		}
