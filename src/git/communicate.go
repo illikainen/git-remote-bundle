@@ -119,6 +119,11 @@ func gitReceivePack(bundleFile *os.File, uri *url.URL, keys *blob.Keyring) error
 		}
 		defer errorx.Defer(tmpFile.Close, &err)
 
+		err = bundleFile.Truncate(0)
+		if err != nil {
+			return err
+		}
+
 		writer, err := blob.NewWriter(bundleFile, &blob.Options{
 			Type:      metadata.Name(),
 			Keyring:   keys,
@@ -139,7 +144,7 @@ func gitReceivePack(bundleFile *os.File, uri *url.URL, keys *blob.Keyring) error
 			return err
 		}
 
-		err = tmpFile.Sync()
+		err = bundleFile.Sync()
 		if err != nil {
 			return err
 		}
