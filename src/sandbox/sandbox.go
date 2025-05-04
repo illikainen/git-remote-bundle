@@ -83,7 +83,7 @@ func Exec(subcommand string, flags *pflag.FlagSet) error {
 	if subcommand == filepath.Base(os.Args[0]) {
 		share |= sandbox.ShareNet
 		stdin = os.Stdin
-		stdout = process.ByteOutput
+		stdout = process.UnsafeByteOutput
 
 		sshRO, sshRW, err := sshx.SandboxPaths()
 		if err != nil {
