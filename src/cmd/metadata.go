@@ -8,9 +8,7 @@ import (
 	"github.com/illikainen/git-remote-bundle/src/metadata"
 
 	"github.com/illikainen/go-cryptor/src/blob"
-	"github.com/illikainen/go-utils/src/cobrax"
 	"github.com/illikainen/go-utils/src/errorx"
-	"github.com/illikainen/go-utils/src/flag"
 	"github.com/pkg/errors"
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
@@ -18,32 +16,47 @@ import (
 )
 
 var metadataOpts struct {
-	input      flag.Path
-	output     flag.Path
+	input      string
+	output     string
 	signedOnly bool
 }
 
 var metadataCmd = &cobra.Command{
-	Use:    "metadata",
-	Short:  "Show the metadata for a signed and optionally encrypted bundle",
-	Run:    cobrax.Run(metadataRun),
-	Hidden: true,
+	Use:     "metadata",
+	Short:   "Show the metadata for a signed and optionally encrypted bundle",
+	PreRunE: metadataPreRun,
+	RunE:    metadataRun,
+	Hidden:  true,
 }
 
 func init() {
 	flags := metadataCmd.Flags()
 
-	metadataOpts.input.State = flag.MustExist
-	flags.VarP(&metadataOpts.input, "input", "i", "File to verify")
+	flags.StringVarP(&metadataOpts.input, "input", "i", "", "File to verify")
 	lo.Must0(metadataCmd.MarkFlagRequired("input"))
 
-	metadataOpts.output.State = flag.MustNotExist
-	flags.VarP(&metadataOpts.output, "output", "o", "Output file for the verified blob")
+	flags.StringVarP(&metadataOpts.output, "output", "o", "", "Output file for the verified blob")
 
 	flags.BoolVarP(&metadataOpts.signedOnly, "signed-only", "s", false,
 		"Required if the archive is signed but not encrypted")
 
 	rootCmd.AddCommand(metadataCmd)
+}
+
+func metadataPreRun(_ *cobra.Command, _ []string) error {
+	err := rootOpts.Sandbox.AddReadOnlyPath(metadataOpts.input)
+	if err != nil {
+		return err
+	}
+
+	if metadataOpts.output != "" {
+		err := rootOpts.Sandbox.AddReadWritePath(metadataOpts.output)
+		if err != nil {
+			return err
+		}
+	}
+
+	return rootOpts.Sandbox.Confine()
 }
 
 func metadataRun(_ *cobra.Command, _ []string) (err error) {
@@ -52,13 +65,13 @@ func metadataRun(_ *cobra.Command, _ []string) (err error) {
 		return err
 	}
 
-	f, err := os.Open(metadataOpts.input.String())
+	in, err := os.Open(metadataOpts.input)
 	if err != nil {
 		return err
 	}
-	defer errorx.Defer(f.Close, &err)
+	defer errorx.Defer(in.Close, &err)
 
-	blobber, err := blob.NewReader(f, &blob.Options{
+	blobber, err := blob.NewReader(in, &blob.Options{
 		Type:      metadata.Name(),
 		Keyring:   keys,
 		Encrypted: !metadataOpts.signedOnly,
@@ -74,14 +87,14 @@ func metadataRun(_ *cobra.Command, _ []string) (err error) {
 	meta = append(meta, '\n')
 
 	log.Infof("%s", meta)
-	if metadataOpts.output.String() != "" {
-		f, err := os.Create(metadataOpts.output.String())
+	if metadataOpts.output != "" {
+		out, err := os.Create(metadataOpts.output)
 		if err != nil {
 			return err
 		}
-		defer errorx.Defer(f.Close, &err)
+		defer errorx.Defer(out.Close, &err)
 
-		n, err := f.Write(meta)
+		n, err := out.Write(meta)
 		if err != nil {
 			return err
 		}
@@ -89,7 +102,7 @@ func metadataRun(_ *cobra.Command, _ []string) (err error) {
 			return errors.Errorf("invalid write size")
 		}
 
-		log.Infof("successfully wrote metadata to %s", metadataOpts.output.String())
+		log.Infof("successfully wrote metadata to %s", metadataOpts.output)
 	}
 
 	return nil

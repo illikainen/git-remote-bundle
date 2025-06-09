@@ -8,36 +8,32 @@ import (
 	"github.com/illikainen/git-remote-bundle/src/metadata"
 
 	"github.com/illikainen/go-cryptor/src/blob"
-	"github.com/illikainen/go-utils/src/cobrax"
 	"github.com/illikainen/go-utils/src/errorx"
-	"github.com/illikainen/go-utils/src/flag"
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 )
 
 var sealOpts struct {
-	input      flag.Path
-	output     flag.Path
+	input      string
+	output     string
 	signedOnly bool
 }
 
 var sealCmd = &cobra.Command{
-	Use:   "seal",
-	Short: "Encrypt and sign a bundle",
-	Run:   cobrax.Run(sealRun),
+	Use:     "seal",
+	Short:   "Encrypt and sign a bundle",
+	PreRunE: sealPreRun,
+	RunE:    sealRun,
 }
 
 func init() {
 	flags := sealCmd.Flags()
 
-	sealOpts.input.State = flag.MustExist
-	flags.VarP(&sealOpts.input, "input", "i", "Input file to seal")
+	flags.StringVarP(&sealOpts.input, "input", "i", "", "Input file to seal")
 	lo.Must0(sealCmd.MarkFlagRequired("input"))
 
-	sealOpts.output.State = flag.MustNotExist
-	sealOpts.output.Mode = flag.ReadWriteMode
-	flags.VarP(&sealOpts.output, "output", "o", "Output file for the sealed blob")
+	flags.StringVarP(&sealOpts.output, "output", "o", "", "Output file for the sealed blob")
 	lo.Must0(sealCmd.MarkFlagRequired("output"))
 
 	flags.BoolVarP(&sealOpts.signedOnly, "signed-only", "s", false,
@@ -46,13 +42,27 @@ func init() {
 	rootCmd.AddCommand(sealCmd)
 }
 
+func sealPreRun(_ *cobra.Command, _ []string) error {
+	err := rootOpts.Sandbox.AddReadOnlyPath(sealOpts.input)
+	if err != nil {
+		return err
+	}
+
+	err = rootOpts.Sandbox.AddReadWritePath(sealOpts.output)
+	if err != nil {
+		return err
+	}
+
+	return rootOpts.Sandbox.Confine()
+}
+
 func sealRun(_ *cobra.Command, _ []string) error {
 	keys, err := git.ReadKeyring()
 	if err != nil {
 		return err
 	}
 
-	writer, err := os.Create(sealOpts.output.String())
+	writer, err := os.Create(sealOpts.output)
 	if err != nil {
 		return err
 	}
@@ -68,7 +78,7 @@ func sealRun(_ *cobra.Command, _ []string) error {
 	}
 	defer errorx.Defer(bundle.Close, &err)
 
-	reader, err := os.Open(sealOpts.input.String())
+	reader, err := os.Open(sealOpts.input)
 	if err != nil {
 		return err
 	}
@@ -79,6 +89,6 @@ func sealRun(_ *cobra.Command, _ []string) error {
 		return err
 	}
 
-	log.Infof("successfully wrote sealed blob to %s", sealOpts.output.String())
+	log.Infof("successfully wrote sealed blob to %s", sealOpts.output)
 	return nil
 }

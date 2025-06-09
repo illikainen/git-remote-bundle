@@ -8,36 +8,32 @@ import (
 	"github.com/illikainen/git-remote-bundle/src/metadata"
 
 	"github.com/illikainen/go-cryptor/src/blob"
-	"github.com/illikainen/go-utils/src/cobrax"
 	"github.com/illikainen/go-utils/src/errorx"
-	"github.com/illikainen/go-utils/src/flag"
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 )
 
 var unsealOpts struct {
-	input      flag.Path
-	output     flag.Path
+	input      string
+	output     string
 	signedOnly bool
 }
 
 var unsealCmd = &cobra.Command{
-	Use:   "unseal",
-	Short: "Verify and decrypt a bundle",
-	Run:   cobrax.Run(unsealRun),
+	Use:     "unseal",
+	Short:   "Verify and decrypt a bundle",
+	PreRunE: unsealPreRun,
+	RunE:    unsealRun,
 }
 
 func init() {
 	flags := unsealCmd.Flags()
 
-	unsealOpts.input.State = flag.MustExist
-	flags.VarP(&unsealOpts.input, "input", "i", "File to unseal")
+	flags.StringVarP(&unsealOpts.input, "input", "i", "", "File to unseal")
 	lo.Must0(unsealCmd.MarkFlagRequired("input"))
 
-	unsealOpts.output.State = flag.MustNotExist
-	unsealOpts.output.Mode = flag.ReadWriteMode
-	flags.VarP(&unsealOpts.output, "output", "o", "Output file for the unsealed blob")
+	flags.StringVarP(&unsealOpts.output, "output", "o", "", "Output file for the unsealed blob")
 	lo.Must0(unsealCmd.MarkFlagRequired("output"))
 
 	flags.BoolVarP(&unsealOpts.signedOnly, "signed-only", "s", false,
@@ -46,13 +42,27 @@ func init() {
 	rootCmd.AddCommand(unsealCmd)
 }
 
+func unsealPreRun(_ *cobra.Command, _ []string) error {
+	err := rootOpts.Sandbox.AddReadOnlyPath(unsealOpts.input)
+	if err != nil {
+		return err
+	}
+
+	err = rootOpts.Sandbox.AddReadWritePath(unsealOpts.output)
+	if err != nil {
+		return err
+	}
+
+	return rootOpts.Sandbox.Confine()
+}
+
 func unsealRun(_ *cobra.Command, _ []string) (err error) {
 	keys, err := git.ReadKeyring()
 	if err != nil {
 		return err
 	}
 
-	reader, err := os.Open(unsealOpts.input.String())
+	reader, err := os.Open(unsealOpts.input)
 	if err != nil {
 		return err
 	}
@@ -67,7 +77,7 @@ func unsealRun(_ *cobra.Command, _ []string) (err error) {
 		return err
 	}
 
-	writer, err := os.Create(unsealOpts.output.String())
+	writer, err := os.Create(unsealOpts.output)
 	if err != nil {
 		return err
 	}
@@ -82,6 +92,6 @@ func unsealRun(_ *cobra.Command, _ []string) (err error) {
 	log.Infof("sha2-256: %s", bundle.Metadata.Hashes.SHA256)
 	log.Infof("sha3-512: %s", bundle.Metadata.Hashes.KECCAK512)
 	log.Infof("blake2b-512: %s", bundle.Metadata.Hashes.BLAKE2b512)
-	log.Infof("successfully wrote unsealed blob to %s", unsealOpts.output.String())
+	log.Infof("successfully wrote unsealed blob to %s", unsealOpts.output)
 	return nil
 }

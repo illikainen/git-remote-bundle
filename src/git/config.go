@@ -46,16 +46,12 @@ func CacheDir() (string, error) {
 }
 
 func Verbosity() (string, error) {
-	verbosities, err := ConfigSlice("bundle.verbosity", "path")
+	verbosity, err := Config("bundle.verbosity", "path")
 	if err != nil {
 		return "", err
 	}
 
-	if len(verbosities) == 1 {
-		return verbosities[0], nil
-	}
-
-	return "info", nil
+	return verbosity, nil
 }
 
 func Encrypt() bool {
@@ -186,7 +182,13 @@ func SandboxPaths() (ro []string, rw []string, err error) {
 		}
 	}
 
-	return ro, nil, nil
+	cache, err := CacheDir()
+	if err != nil {
+		return nil, nil, err
+	}
+	rw = append(rw, cache)
+
+	return ro, rw, nil
 }
 
 func expand(path string) (string, error) {

@@ -6,14 +6,13 @@ import (
 
 	"github.com/illikainen/go-cryptor/src/asymmetric"
 	"github.com/illikainen/go-utils/src/cobrax"
-	"github.com/illikainen/go-utils/src/flag"
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 )
 
 var genkeyOpts struct {
-	output flag.Path
+	output string
 	delay  time.Duration
 }
 
@@ -26,10 +25,7 @@ var genkeyCmd = &cobra.Command{
 func init() {
 	flags := genkeyCmd.Flags()
 
-	genkeyOpts.output.State = flag.MustNotExist
-	genkeyOpts.output.Mode = flag.ReadWriteMode
-	genkeyOpts.output.Suffixes = []string{"pub", "priv"}
-	flags.VarP(&genkeyOpts.output, "output", "o",
+	flags.StringVarP(&genkeyOpts.output, "output", "o", "",
 		"Write the generated keypair to <output>.pub and <output>.priv")
 	lo.Must0(genkeyCmd.MarkFlagRequired("output"))
 
@@ -45,13 +41,13 @@ func genkeyRun(_ *cobra.Command, _ []string) error {
 		return err
 	}
 
-	pubFile := fmt.Sprintf("%s.pub", genkeyOpts.output.String())
+	pubFile := fmt.Sprintf("%s.pub", genkeyOpts.output)
 	err = pubKey.Write(pubFile)
 	if err != nil {
 		return err
 	}
 
-	privFile := fmt.Sprintf("%s.priv", genkeyOpts.output.String())
+	privFile := fmt.Sprintf("%s.priv", genkeyOpts.output)
 	err = privKey.Write(privFile)
 	if err != nil {
 		return err

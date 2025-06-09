@@ -2,16 +2,18 @@ package cmd
 
 import (
 	"fmt"
+	"io"
+	"net/url"
 	"os"
 	"strings"
 
 	"github.com/illikainen/git-remote-bundle/src/git"
 	"github.com/illikainen/git-remote-bundle/src/metadata"
-	"github.com/illikainen/git-remote-bundle/src/sandbox"
 
+	"github.com/illikainen/go-netutils/src/sshx"
 	"github.com/illikainen/go-utils/src/cobrax"
-	"github.com/illikainen/go-utils/src/flag"
-	"github.com/illikainen/go-utils/src/logging"
+	"github.com/illikainen/go-utils/src/process"
+	"github.com/illikainen/go-utils/src/sandbox"
 	"github.com/pkg/errors"
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
@@ -19,15 +21,17 @@ import (
 )
 
 var rootOpts struct {
-	url       flag.URL
-	cacheDir  flag.Path
-	verbosity logging.LogLevel
+	Sandbox   sandbox.Sandbox
+	sandbox   string
+	url       string
+	cacheDir  string
+	verbosity string
 }
 
 var rootCmd = &cobra.Command{
 	Use:     metadata.Name(),
 	Version: metadata.Version(),
-	Args:    rootArgs,
+	Args:    cobra.ExactArgs(2),
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
 		err := rootPreRun(cmd, args)
 		if err != nil {
@@ -46,65 +50,105 @@ func init() {
 	flags := rootCmd.PersistentFlags()
 	flags.SortFlags = false
 
-	flags.Var(&rootOpts.url, "url", "URL")
+	flags.StringVarP(&rootOpts.url, "url", "", "", "URL")
 	lo.Must0(flags.MarkHidden("url"))
 
-	rootOpts.cacheDir.State = flag.MustBeDir
-	rootOpts.cacheDir.Mode = flag.ReadWriteMode
-	flags.Var(&rootOpts.cacheDir, "cache-dir", "Cache directory")
+	flags.StringVarP(&rootOpts.cacheDir, "cache-dir", "", lo.Must1(git.CacheDir()), "Cache directory")
 
 	levels := []string{}
 	for _, level := range log.AllLevels {
 		levels = append(levels, level.String())
 	}
-	flags.Var(&rootOpts.verbosity, "verbosity", fmt.Sprintf("Verbosity (%s)", strings.Join(levels, ", ")))
+	flags.StringVarP(&rootOpts.verbosity, "verbosity", "", lo.Must1(git.Verbosity()),
+		fmt.Sprintf("Verbosity (%s)", strings.Join(levels, ", ")))
+
+	flags.StringVarP(&rootOpts.sandbox, "sandbox", "", "", "Sandbox backend")
 }
 
-func rootPreRun(cmd *cobra.Command, _ []string) error {
-	flags := cmd.Flags()
-
-	cacheDir, err := git.CacheDir()
+func rootPreRun(_ *cobra.Command, _ []string) error {
+	level, err := log.ParseLevel(rootOpts.verbosity)
 	if err != nil {
 		return err
 	}
-	if err := flag.SetFallback(flags, "cache-dir", cacheDir); err != nil {
-		return err
-	}
+	log.SetLevel(level)
 
-	verbosity, err := git.Verbosity()
-	if err != nil {
-		return err
-	}
-	if err := flag.SetFallback(flags, "verbosity", verbosity); err != nil {
-		return err
-	}
-
-	return sandbox.Exec(cmd.CalledAs(), flags)
-}
-
-func rootArgs(cmd *cobra.Command, args []string) error {
-	err := cobra.ExactArgs(2)(cmd, args)
+	backend, err := sandbox.Backend(rootOpts.sandbox)
 	if err != nil {
 		return err
 	}
 
-	flags := cmd.Flags()
-	uri := flags.Lookup("url")
-	err = uri.Value.Set(args[1])
+	ro, rw, err := git.SandboxPaths()
 	if err != nil {
 		return err
+	}
+
+	switch backend {
+	case sandbox.BubblewrapSandbox:
+		rootOpts.Sandbox, err = sandbox.NewBubblewrap(&sandbox.BubblewrapOptions{
+			ReadOnlyPaths:    ro,
+			ReadWritePaths:   rw,
+			Tmpfs:            true,
+			Devtmpfs:         true,
+			Procfs:           true,
+			AllowCommonPaths: true,
+			Stdin:            io.Reader(nil),
+			Stdout:           process.LogrusOutput,
+			Stderr:           process.LogrusOutput,
+		})
+		if err != nil {
+			return err
+		}
+	case sandbox.NoSandbox:
+		rootOpts.Sandbox, err = sandbox.NewNoop()
+		if err != nil {
+			return err
+		}
 	}
 
 	return nil
 }
 
-func rootRun(_ *cobra.Command, _ []string) error {
+// This function is reached when invoked through `git` or if the user manually
+// executes `git-remote-bundle` on the CLI without specifying a subcommand.
+func rootRun(_ *cobra.Command, args []string) error {
 	// The GIT_DIR and GIT_EXEC_PATH environment variables are set when Git
 	// executes the helper.
-	//
-	// Behavior observed with Git 2.39.2.
 	if os.Getenv("GIT_DIR") == "" || os.Getenv("GIT_EXEC_PATH") == "" {
 		return errors.Errorf("not invoked as a remote helper by git")
 	}
-	return git.Communicate(rootOpts.url.Value, rootOpts.cacheDir.Value)
+
+	ro, rw, err := sshx.SandboxPaths()
+	if err != nil {
+		return err
+	}
+
+	uri, err := url.Parse(args[1])
+	if err != nil {
+		return err
+	}
+
+	if uri.Scheme == "file" {
+		rw = append(rw, uri.Path)
+	}
+
+	err = rootOpts.Sandbox.AddReadOnlyPath(ro...)
+	if err != nil {
+		return err
+	}
+
+	err = rootOpts.Sandbox.AddReadWritePath(rw...)
+	if err != nil {
+		return err
+	}
+
+	rootOpts.Sandbox.SetStdin(os.Stdin)
+	rootOpts.Sandbox.SetStdout(process.UnsafeByteOutput)
+	rootOpts.Sandbox.SetShareNet(true)
+
+	err = rootOpts.Sandbox.Confine()
+	if err != nil {
+		return err
+	}
+
+	return git.Communicate(uri, rootOpts.cacheDir)
 }

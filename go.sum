@@ -8,8 +8,8 @@ github.com/illikainen/go-cryptor v0.0.0-20250505122540-fd5a2321b8f5 h1:p1BzIYtKz
 github.com/illikainen/go-cryptor v0.0.0-20250505122540-fd5a2321b8f5/go.mod h1:cpgQejcGiXb2WmL7dLT419cp29kCu3xN1TzqxXDT7Ds=
 github.com/illikainen/go-netutils v0.0.0-20250505122326-0e2700986716 h1:6b+oJ2F+IFO3tuhLrTbjT0Vicp/u+q7fcqRyo3ssoEI=
 github.com/illikainen/go-netutils v0.0.0-20250505122326-0e2700986716/go.mod h1:NC/Hlw20lMczESnDDW7JNyDuA3GPSimTrVFE76r0E8c=
-github.com/illikainen/go-utils v0.0.0-20250505121911-a2d2eb85064b h1:ChJnMjNmQAcD6Aoii/idoDeMxj6NtaQSNccoTd5Njo0=
-github.com/illikainen/go-utils v0.0.0-20250505121911-a2d2eb85064b/go.mod h1:VmDx9pk02aLjhoJ2/fknXBvH+UwNIxA77W/fcdnb5AU=
+github.com/illikainen/go-utils v0.0.0-20250603184054-e6bcd2510926 h1:QAm0Zw6ZGyOt8JkvOgfqlVt/2uIYN7ynwjtig/g3Ht8=
+github.com/illikainen/go-utils v0.0.0-20250603184054-e6bcd2510926/go.mod h1:0J5L4uLRF4UGr1swIf9RNZjdrlh372Kt4B8yverY8UQ=
 github.com/inconshreveable/mousetrap v1.0.1 h1:U3uMjPSQEBMNp1lFxmllqCPM6P5u/Xq7Pgzkat/bFNc=
 github.com/inconshreveable/mousetrap v1.0.1/go.mod h1:vpF70FUmC8bwa3OWnCshd2FqLfsEA9PFc4w1p2J65bw=
 github.com/kevinburke/ssh_config v1.2.0 h1:x584FjTGwHzMwvHx18PXxbBVzfnxogHaAReU4gf13a4=
@@ -53,8 +53,8 @@ golang.org/x/sys v0.0.0-20210615035016-665e8c7367d1/go.mod h1:oPkhp1MJrh7nUepCBc
 golang.org/x/sys v0.0.0-20211216021012-1d35b9e2eb4e/go.mod h1:oPkhp1MJrh7nUepCBck5+mAzfO9JrbApNNgaTdGDITg=
 golang.org/x/sys v0.0.0-20220715151400-c0bba94af5f8/go.mod h1:oPkhp1MJrh7nUepCBck5+mAzfO9JrbApNNgaTdGDITg=
 golang.org/x/sys v0.0.0-20220811171246-fbc7d0a398ab/go.mod h1:oPkhp1MJrh7nUepCBck5+mAzfO9JrbApNNgaTdGDITg=
-golang.org/x/sys v0.15.0 h1:h48lPFYpsTvQJZF4EKyI4aLHaev3CxivZmv7yZig9pc=
-golang.org/x/sys v0.15.0/go.mod h1:/VUhepiaJMQUp4+oa/7Zr1D23ma6VTLIYjOOTFZPUcA=
+golang.org/x/sys v0.28.0 h1:Fksou7UEQUWlKvIdsqzJmUmCX3cZuD2+P3XyyzwMhlA=
+golang.org/x/sys v0.28.0/go.mod h1:/VUhepiaJMQUp4+oa/7Zr1D23ma6VTLIYjOOTFZPUcA=
 golang.org/x/term v0.0.0-20201126162022-7de9c90e9dd1/go.mod h1:bj7SfCRtBDWHUb9snDiAeCFNEtKQo2Wmx5Cou7ajbmo=
 golang.org/x/term v0.15.0 h1:y/Oo/a/q3IXu26lQgl04j/gjuBDOBlx7X6Om1j2CPW4=
 golang.org/x/term v0.15.0/go.mod h1:BDl952bC7+uMoWR75FIrCDx79TPU9oHkTZ9yRbYOrX0=
