@@ -11,10 +11,10 @@ import (
 	"github.com/illikainen/git-remote-bundle/src/metadata"
 
 	"github.com/illikainen/go-netutils/src/sshx"
+	"github.com/illikainen/go-utils/src/fn"
 	"github.com/illikainen/go-utils/src/process"
 	"github.com/illikainen/go-utils/src/sandbox"
 	"github.com/pkg/errors"
-	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 )
@@ -50,15 +50,15 @@ func init() {
 	flags.SortFlags = false
 
 	flags.StringVarP(&rootOpts.url, "url", "", "", "URL")
-	lo.Must0(flags.MarkHidden("url"))
+	fn.Must(flags.MarkHidden("url"))
 
-	flags.StringVarP(&rootOpts.cacheDir, "cache-dir", "", lo.Must1(git.CacheDir()), "Cache directory")
+	flags.StringVarP(&rootOpts.cacheDir, "cache-dir", "", fn.Must1(git.CacheDir()), "Cache directory")
 
 	levels := []string{}
 	for _, level := range log.AllLevels {
 		levels = append(levels, level.String())
 	}
-	flags.StringVarP(&rootOpts.verbosity, "verbosity", "", lo.Must1(git.Verbosity()),
+	flags.StringVarP(&rootOpts.verbosity, "verbosity", "", fn.Must1(git.Verbosity()),
 		fmt.Sprintf("Verbosity (%s)", strings.Join(levels, ", ")))
 
 	flags.StringVarP(&rootOpts.sandbox, "sandbox", "", "", "Sandbox backend")
