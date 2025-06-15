@@ -11,7 +11,6 @@ import (
 	"github.com/illikainen/git-remote-bundle/src/metadata"
 
 	"github.com/illikainen/go-netutils/src/sshx"
-	"github.com/illikainen/go-utils/src/cobrax"
 	"github.com/illikainen/go-utils/src/process"
 	"github.com/illikainen/go-utils/src/sandbox"
 	"github.com/pkg/errors"
@@ -39,7 +38,7 @@ var rootCmd = &cobra.Command{
 			log.Fatalf("%s", err)
 		}
 	},
-	Run: cobrax.Run(rootRun),
+	RunE: rootRun,
 }
 
 func Command() *cobra.Command {

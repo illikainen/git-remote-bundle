@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/illikainen/go-cryptor/src/asymmetric"
-	"github.com/illikainen/go-utils/src/cobrax"
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
@@ -19,7 +18,7 @@ var genkeyOpts struct {
 var genkeyCmd = &cobra.Command{
 	Use:   "genkey",
 	Short: "Generate a keypair",
-	Run:   cobrax.Run(genkeyRun),
+	RunE:  genkeyRun,
 }
 
 func init() {
